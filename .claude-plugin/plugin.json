@@ -1,6 +1,6 @@
 {
   "name": "session-cockpit",
-  "version": "0.24.0",
+  "version": "0.25.0",
   "description": "An opencode-style session sidebar: title, model, git, context, usage and cost, skills, sessions and their agents, conversations, notes, changed files with diffs, MCP servers, todos and settings",
   "author": { "name": "Francisco Rodriguez", "url": "https://github.com/cocadepoma" },
   "homepage": "https://github.com/cocadepoma/session-cockpit",
