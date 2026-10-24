@@ -10,6 +10,7 @@ import { describeError, record, traced } from './lib/trace'
 import { reconcileAgents, resetActivity, tickPane } from './sections/activity'
 import { loadCostTotalsOnce, noteCostBaseline, refreshCostTotals, refreshCostTotalsIfShown } from './sections/cost'
 import { refreshConversations } from './sections/conversations'
+import { resetDiff } from './sections/diff'
 import { refreshBreakdown, resetMeasurement, restoreContextDetails } from './sections/contextDetails'
 import { refreshModel, refreshSessionTitle, resetTitles, setTurnActive } from './sections/header'
 import { startKeepAwakeTick, syncKeepAwake } from './sections/keepAwake'
@@ -66,6 +67,7 @@ export async function resetConversation($: EngineInterface, sessionTitle: string
     resetTitles($, sessionTitle),
     resetTodos($),
     forgetFiles($, watchedSessionId),
+    resetDiff($),
     resetMeasurement($),
     resetActivity($),
     setTurnActive($, false),

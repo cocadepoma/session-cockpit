@@ -12,6 +12,7 @@ import type { PaneInput } from './lib/view'
 import { catchUpWatchers } from './refresh'
 import { drawActivity } from './sections/activity'
 import { countConversations, drawConversations } from './sections/conversations'
+import { drawDiffView, readDiff } from './sections/diff'
 import { countFiles, drawFiles } from './sections/files'
 import { drawFooter } from './sections/footer'
 import { drawHeader, drawModelLine } from './sections/header'
@@ -199,6 +200,11 @@ export async function drawPane($: EngineInterface, e: PaneInput, settings: Setti
   }
   if (e.props.placement === 'inline') return drawInlinePane($, e, settings)
   const { Box } = $.ui.resolve(e)
+  if ((await readDiff($)) !== null) {
+    listSpans = []
+
+    return drawDiffView($, e)
+  }
   const [logo, header, keepAwake, context, limits, skills, sessions, conversations, notes, files, mcp, activity, todos, help, settingsSection, footer] =
     await Promise.all([
       settings.isShown('logo') ? drawLogo($, e) : null,

@@ -88,7 +88,7 @@ test('a notebook edit is tracked by its notebook path', async ($, on) => {
   await ui.unmount()
 })
 
-test('pressing a file opens the diff pane with the unified diff against the session baseline', async ($, on) => {
+test('pressing a file shows the unified diff against the session baseline in place of the sections', async ($, on) => {
   const { world, panes } = givenEngine(on)
   world.store.filesOpen = true
   world.files[SRC_FILE] = 'one\ntwo\nthree\n'
@@ -98,15 +98,30 @@ test('pressing a file opens the diff pane with the unified diff against the sess
 
   const ui = await $.ui.mount({ ...PANE, surface: 'terminal' })
   await ui.press({ key: `file:${SRC_FILE}` })
-  expect(panes.at(-1)).toEqual({ id: 'diff', title: 'index.ts', focus: true, closeOnEscape: true })
+  expect(panes.filter(pane => pane.id === 'diff')).toEqual([])
 
-  const diff = await $.ui.mount({ ...PANE, requestId: 'diff', props: { ...PANE.props, title: 'index.ts' }, surface: 'terminal' })
-  const code = await diff.find({ type: 'Code' })
+  const code = await ui.find({ type: 'Code' })
   expect(code?.props.format).toBe('diff')
   expect(code?.text).toBe('@@ -2,2 +2,2 @@\n-two\n-three\n+TWO\n+THREE\n')
-  expect((await diff.find({ type: 'Text', text: /^src\/index\.ts$/ }))?.text).toBe('src/index.ts')
-  expect(await diff.find({ type: 'Text', text: /No changes/ })).toBeUndefined()
-  await diff.unmount()
+  expect((await ui.find({ type: 'Text', text: /^src\/index\.ts$/ }))?.text).toBe('src/index.ts')
+  expect(await ui.find({ type: 'Text', text: /No changes/ })).toBeUndefined()
+  expect(await ui.find({ type: 'Text', text: /^Files$/ })).toBeUndefined()
+  await ui.unmount()
+})
+
+test('Back returns from the diff to the sections', async ($, on) => {
+  const { world } = givenEngine(on)
+  world.store.filesOpen = true
+  world.files[SRC_FILE] = 'one\ntwo\nthree\n'
+  await $.session.start({ cwd: '/home/dev/app', surface: 'terminal', isInteractive: true })
+  await $.tool.call(editFile(SRC_FILE, 'two', 'TWO'))
+  const ui = await $.ui.mount({ ...PANE, surface: 'terminal' })
+  await ui.press({ key: `file:${SRC_FILE}` })
+
+  await ui.press({ key: 'diff-back' })
+
+  expect(await ui.find({ type: 'Code' })).toBeUndefined()
+  expect((await ui.find({ type: 'Text', text: /^Files$/ }))?.text).toBe('Files')
   await ui.unmount()
 })
 
@@ -121,10 +136,43 @@ test('a file whose content is back to its baseline shows that nothing changed', 
   const ui = await $.ui.mount({ ...PANE, surface: 'terminal' })
   await ui.press({ key: `file:${SRC_FILE}` })
 
-  const diff = await $.ui.mount({ ...PANE, requestId: 'diff', surface: 'terminal' })
-  expect((await diff.find({ type: 'Text', text: /No changes/ }))?.text).toBe('No changes since the session began')
-  expect(await diff.find({ type: 'Code' })).toBeUndefined()
-  await diff.unmount()
+  expect((await ui.find({ type: 'Text', text: /No changes/ }))?.text).toBe('No changes since the session began')
+  expect(await ui.find({ type: 'Code' })).toBeUndefined()
+  await ui.unmount()
+})
+
+test('the Back button is the primary action and answers the b hotkey', async ($, on) => {
+  const { world } = givenEngine(on)
+  world.store.filesOpen = true
+  world.files[SRC_FILE] = 'one\ntwo\nthree\n'
+  await $.session.start({ cwd: '/home/dev/app', surface: 'terminal', isInteractive: true })
+  await $.tool.call(editFile(SRC_FILE, 'two', 'TWO'))
+  const ui = await $.ui.mount({ ...PANE, surface: 'terminal' })
+  await ui.press({ key: `file:${SRC_FILE}` })
+
+  const back = await ui.find({ type: 'Button', key: 'diff-back' })
+
+  expect(back?.props.hotkey).toBe('b')
+  expect(back?.props.variant).toBe('primary')
+  await ui.unmount()
+})
+
+test('a new conversation closes an open diff and brings the sections back', async ($, on) => {
+  const clock = mock.clock(on, { now: NOW })
+  const { world } = givenEngine(on, { usesMockClock: true })
+  world.store.filesOpen = true
+  world.files[SRC_FILE] = 'one\n'
+  await $.session.start({ cwd: '/home/dev/app', surface: 'terminal', isInteractive: true })
+  await $.tool.call(editFile(SRC_FILE, 'one', 'two'))
+  const ui = await $.ui.mount({ ...PANE, surface: 'terminal' })
+  await ui.press({ key: `file:${SRC_FILE}` })
+  expect(await ui.find({ type: 'Code' })).toBeDefined()
+
+  world.sessionId = 'other'
+  await clock.advance(1_000)
+
+  expect(await ui.find({ type: 'Code' })).toBeUndefined()
+  expect((await ui.find({ type: 'Text', text: /^Files$/ }))?.text).toBe('Files')
   await ui.unmount()
 })
 
@@ -141,13 +189,11 @@ test('a diff over the size cap is cut at a hunk boundary and says so', async ($,
   const ui = await $.ui.mount({ ...PANE, surface: 'terminal' })
   await ui.press({ key: `file:${SRC_FILE}` })
 
-  const diff = await $.ui.mount({ ...PANE, requestId: 'diff', surface: 'terminal' })
-  const source = (await diff.find({ type: 'Code' }))?.text ?? ''
+  const source = (await ui.find({ type: 'Code' }))?.text ?? ''
   expect(source.length).toBeLessThanOrEqual(100_000)
   expect(source.match(/^@@ /gm)).toHaveLength(1)
   expect(source.startsWith('@@ -1,1 +1,1 @@')).toBe(true)
-  expect((await diff.find({ type: 'Text', text: /Too large/ }))?.text).toBe('Too large to show in full: 1 of 3 hunks shown')
-  await diff.unmount()
+  expect((await ui.find({ type: 'Text', text: /Too large/ }))?.text).toBe('Too large to show in full: 1 of 3 hunks shown')
   await ui.unmount()
 })
 
@@ -231,7 +277,7 @@ test('the files filter matches the shown path, never the absolute one, and group
 })
 
 test('Enter in the files filter opens the diff of the first match and nothing without one', async ($, on) => {
-  const { world, panes } = givenEngine(on)
+  const { world } = givenEngine(on)
   world.store.filesOpen = true
   givenGitRepository(world, ' M src/lib.ts\0 M src/main.ts\0')
   world.git.diffs[`${APP}/src/main.ts`] = '@@ -1 +1 @@\n-a\n+b\n'
@@ -240,11 +286,11 @@ test('Enter in the files filter opens the diff of the first match and nothing wi
   const ui = await $.ui.mount({ ...PANE, surface: 'terminal' })
   await ui.input({ key: 'files-filter', text: 'zzz', kind: 'change' })
   await ui.input({ key: 'files-filter', text: 'zzz' })
-  expect(panes.filter(pane => pane.id === 'diff')).toEqual([])
+  expect(await ui.find({ type: 'Code' })).toBeUndefined()
 
   await ui.input({ key: 'files-filter', text: 'main', kind: 'change' })
   await ui.input({ key: 'files-filter', text: 'main' })
-  expect(panes.at(-1)).toEqual({ id: 'diff', title: 'main.ts', focus: true, closeOnEscape: true })
+  expect((await ui.find({ type: 'Code' }))?.text).toBe('@@ -1 +1 @@\n-a\n+b\n')
   expect((await ui.find({ type: 'Text', text: /^src\/main\.ts$/ }))?.text).toBe('src/main.ts')
   await ui.unmount()
 })
