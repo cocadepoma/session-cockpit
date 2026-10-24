@@ -57,6 +57,18 @@ To load art from a file, write it there and run `/logo file`; the file is read a
 
 Keys: `ctrl+x tab` focuses the sidebar, `Esc` returns focus and closes the diff pane.
 
+To save the selected text with a shortcut, bind a key to the `/note` command in `~/.claude/keybindings.json` (Claude Code runs the bound command as if typed, and the selection survives the keypress):
+
+```json
+{
+  "bindings": [
+    { "context": "Chat", "bindings": { "ctrl+n": "command:note" } }
+  ]
+}
+```
+
+Select text in the transcript, press `ctrl+n`, and the note appears in Notes. Plugins cannot ship keybindings, so this is the user's file; pick any chord that is free in the Chat context.
+
 ## Configuration
 
 The options are in `/config`, under this plugin:
