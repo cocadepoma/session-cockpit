@@ -4,6 +4,8 @@ All notable changes to this mod. The format follows [Keep a Changelog](https://k
 
 ## [Unreleased]
 
+## [0.24.0] - 2026-10-24
+
 ### Changed
 
 - Without Claude Code's fullscreen layout the sidebar no longer fills the space above the prompt. Claude Code docks a pane beside the chat only in fullscreen, and elsewhere places it above the prompt, where the whole sidebar pushed the conversation down and its buttons could not be clicked. On a terminal without fullscreen, the sidebar the session opens by itself now closes at once (the next session still opens it), and `/sidebar` shows a compact view: model and effort, the context bar and the usage limits, with nothing to press and a line saying to set `"tui": "fullscreen"`. A fullscreen terminal narrower than 110 columns shows the same view with a line asking for a wider terminal, and the mobile app shows it too. Hiding Context or Usage hides it here as well.
