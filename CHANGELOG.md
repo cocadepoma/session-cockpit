@@ -4,6 +4,8 @@ All notable changes to this mod. The format follows [Keep a Changelog](https://k
 
 ## [Unreleased]
 
+## [0.23.1] - 2026-10-24
+
 ### Added
 
 - README: how to save the selected text with a shortcut, by binding a key to `command:note` in `~/.claude/keybindings.json`.
