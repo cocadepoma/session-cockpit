@@ -6,12 +6,10 @@ import { replaceEditedFile } from '../data/editedFiles'
 import { readGitChanges, replaceGitFile } from '../data/git'
 import { readMeta } from '../data/meta'
 import { countChanges, readChanges, snapshotDirectory, snapshotName } from '../data/snapshots'
-import { baseName, relativePath } from '../lib/paths'
+import { PANE } from '../lib/pane'
+import { relativePath } from '../lib/paths'
 import type { PaneInput } from '../lib/view'
 
-export const DIFF_PANE = 'diff'
-const DIFF_PANE_COLUMNS = 100
-const DIFF_PANE_ROWS = 24
 const DIFF_MAX_CHARS = 100_000
 const NO_CHANGES_NOTE = 'No changes since the session began'
 const NO_GIT_CHANGES_NOTE = 'No changes against HEAD'
@@ -47,24 +45,41 @@ export async function openDiff($: EngineInterface, path: string) {
     update($, diffState, () => diff),
     isSession ? replaceEditedFile($, file) : replaceGitFile($, file),
   ])
-  const opened = await $.ui.open({
-    id: DIFF_PANE,
-    title: baseName(path),
-    focus: true,
-    closeOnEscape: true,
-    rows: DIFF_PANE_ROWS,
-    columns: DIFF_PANE_COLUMNS,
-  })
-  if (!opened.isPlaced) $.ui.toast(`Could not open the diff: ${opened.reason}`)
+  await $.ui.scroll({ in: PANE, to: 'start' }).catch(() => undefined)
 }
 
-export async function drawDiff($: EngineInterface, e: PaneInput) {
-  const { Box, Code, Text } = $.ui.resolve(e)
+export async function readDiff($: EngineInterface) {
+  return read($, diffState)
+}
+
+async function clearDiff($: EngineInterface) {
+  const diff = await read($, diffState)
+  if (diff === null) return null
+  await update($, diffState, () => null)
+
+  return diff
+}
+
+export async function resetDiff($: EngineInterface) {
+  await clearDiff($)
+}
+
+async function closeDiff($: EngineInterface) {
+  const diff = await clearDiff($)
+  if (diff !== null) await $.ui.scroll({ in: PANE, to: { key: `file:${diff.path}` }, block: 'center' }).catch(() => undefined)
+}
+
+export async function drawDiffView($: EngineInterface, e: PaneInput) {
+  const { Box, Button, Code, Text } = $.ui.resolve(e)
   const [diff, meta] = await Promise.all([read($, diffState), readMeta($)])
-  if (diff === null) return <Text color="inactive">Press a file in the sidebar to see its diff</Text>
+  if (diff === null) return <Box />
 
   return (
     <Box flexDirection="column" paddingX={1}>
+      <Button key="diff-back" variant="primary" hotkey="b" onPress={() => void closeDiff($)}>
+        ← Back (b)
+      </Button>
+      <Text> </Text>
       <Text bold wrap="truncate-start">
         {relativePath(diff.path, meta.cwd)}
       </Text>

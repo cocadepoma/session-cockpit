@@ -4,6 +4,10 @@ All notable changes to this mod. The format follows [Keep a Changelog](https://k
 
 ## [Unreleased]
 
+### Changed
+
+- Pressing a file in Files shows its diff inside the sidebar, in place of the sections, with a `Back` button (`b`), instead of opening a second tab. `Back` returns to the file's row. This avoids a diff opened behind the `Session` tab that never took focus.
+
 ## [0.25.0] - 2026-10-24
 
 ### Changed

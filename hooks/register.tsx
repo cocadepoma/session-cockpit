@@ -11,7 +11,6 @@ import { isSidebarShown, PANE } from './lib/pane'
 import { readSettings } from './lib/settings'
 import { describeError, guarded, record } from './lib/trace'
 import { refreshAll, resetConversation, startWatchers } from './refresh'
-import { DIFF_PANE, drawDiff } from './sections/diff'
 import { refreshSessionTitle, setEffortAfterCommand, setModel, setTurnActive, titleFromPrompt } from './sections/header'
 import { forgetStoredLogo, registerLogoCommand, runLogoCommand } from './sections/logo'
 import { registerNoteCommand, runNoteCommand } from './sections/notes'
@@ -238,8 +237,6 @@ export const register: Register = (on, options) => {
 
     return result
   })
-
-  on('ui.render', { component: 'Pane', requestId: DIFF_PANE }, ($, e) => drawDiff($, e))
 
   on('ui.render', { component: 'Pane', requestId: PANE }, ($, e) => drawPane($, e, settings))
 }

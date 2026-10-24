@@ -62,7 +62,7 @@ test('a file both edited by Claude and changed in git appears once with its sess
 })
 
 test('pressing a git-only file opens its git diff, and an untracked one its diff against /dev/null', async ($, on) => {
-  const { world, panes } = givenEngine(on)
+  const { world } = givenEngine(on)
   world.store.filesOpen = true
   world.files[`${APP}/docs/new.md`] = 'hello\n'
   givenGitRepository(world, ' M src/lib.ts\0?? docs/new.md\0', '1\t1\tsrc/lib.ts\0')
@@ -73,21 +73,16 @@ test('pressing a git-only file opens its git diff, and an untracked one its diff
 
   const ui = await $.ui.mount({ ...PANE, surface: 'terminal' })
   await ui.press({ key: `file:${APP}/src/lib.ts` })
-  expect(panes.at(-1)).toEqual({ id: 'diff', title: 'lib.ts', focus: true, closeOnEscape: true })
-  const diff = await $.ui.mount({ ...PANE, requestId: 'diff', surface: 'terminal' })
-  expect((await diff.find({ type: 'Code' }))?.text).toBe('@@ -1 +1 @@\n-a\n+b\n')
-  await diff.unmount()
+  expect((await ui.find({ type: 'Code' }))?.text).toBe('@@ -1 +1 @@\n-a\n+b\n')
+  await ui.press({ key: 'diff-back' })
 
   await ui.press({ key: `file:${APP}/docs/new.md` })
-  const untracked = await $.ui.mount({ ...PANE, requestId: 'diff', surface: 'terminal' })
-  expect((await untracked.find({ type: 'Code' }))?.text).toBe('@@ -0,0 +1 @@\n+hello\n')
-  await untracked.unmount()
+  expect((await ui.find({ type: 'Code' }))?.text).toBe('@@ -0,0 +1 @@\n+hello\n')
+  await ui.press({ key: 'diff-back' })
 
   world.git.diffs[`${APP}/src/lib.ts`] = ''
   await ui.press({ key: `file:${APP}/src/lib.ts` })
-  const empty = await $.ui.mount({ ...PANE, requestId: 'diff', surface: 'terminal' })
-  expect((await empty.find({ type: 'Text', text: /No changes/ }))?.text).toBe('No changes against HEAD')
-  await empty.unmount()
+  expect((await ui.find({ type: 'Text', text: /No changes/ }))?.text).toBe('No changes against HEAD')
   await ui.unmount()
 })
 
@@ -101,6 +96,7 @@ test('git runs without optional locks or the fsmonitor, and its diffs without ex
 
   const ui = await $.ui.mount({ ...PANE, surface: 'terminal' })
   await ui.press({ key: `file:${APP}/src/lib.ts` })
+  await ui.press({ key: 'diff-back' })
   await ui.press({ key: `file:${APP}/docs/new.md` })
   await ui.unmount()
 

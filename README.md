@@ -46,7 +46,7 @@ The sidebar stays hidden in VS Code: in the Claude Code extension and in `claude
 | Sessions | Running Claude Code sessions, this one first, each `working`, `waiting` (showing what it waits for) or `done`; waiting ones come right after this one. A session with agents at work shows `· N agents` and lists them under its row (`└ type · description`, with their status), indented one level per parent; only sessions running this version of the mod publish them | Filter (agents follow their session) |
 | Conversations | Recent conversations in this project, current one first | Filter; press to resume; `+ new` starts a new one |
 | Notes | Saved notes | Filter; press to copy; `✕` deletes |
-| Files | Repository changes against `HEAD` and files Claude edited, grouped by repository and `Other`; the header shows the total `+added -removed` | Filter; press a file to open its diff |
+| Files | Repository changes against `HEAD` and files Claude edited, grouped by repository and `Other`; the header shows the total `+added -removed` | Filter; press a file to show its diff in place of the sections, `Back` (or `b`) returns |
 | MCP | Connected MCP servers | Filter (when there are three or more) |
 | Activity | Off by default (turn it on with `Show Activity` or in Settings). The tool calls and subagents running now, each with its target and elapsed time (subagent calls nested under their row), and the last five finished ones with `✓` or `✗`; hidden while there is nothing to show; drawn below MCP; nothing is recorded while it is off | |
 | Todo | The session's todo list | |
@@ -69,7 +69,7 @@ To paste a logo, type `/logo`, press `shift+enter` for a new line, then paste th
 
 To load art from a file, write it there and run `/logo file`; the file is read as text, so its colour codes keep their `ESC`, and `/logo file` says why it refuses one: it cannot be read, it is empty, it has escape codes other than colours (cursor moves, clears), or it is taller than 40 lines. The file is the way to get art into the sidebar without the paste, which can change non-ASCII characters.
 
-Keys: `ctrl+x tab` focuses the sidebar, `Esc` returns focus and closes the diff pane.
+Keys: `ctrl+x tab` focuses the sidebar, `Esc` returns focus; `b` goes back from a diff.
 
 To save the selected text with a shortcut, bind a key to the `/note` command in `~/.claude/keybindings.json` (Claude Code runs the bound command as if typed, and the selection survives the keypress):
 
