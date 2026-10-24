@@ -4,6 +4,14 @@ All notable changes to this mod. The format follows [Keep a Changelog](https://k
 
 ## [Unreleased]
 
+### Changed
+
+- The sidebar stays hidden in VS Code, both in the Claude Code extension and in `claude` run from VS Code's integrated terminal. It does not open by itself there, a sidebar drawn there closes without being remembered as closed, and `/sidebar` answers `The sidebar is off in VS Code.`
+
+### Added
+
+- README: a VS Code section.
+
 ## [0.24.0] - 2026-10-24
 
 ### Changed

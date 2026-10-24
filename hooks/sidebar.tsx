@@ -1,4 +1,4 @@
-import type { EngineInterface } from 'claude-code'
+import type { EngineInterface, RenderSurface } from 'claude-code'
 
 import { DEBUG_ARGUMENT, OWN_COMMAND } from './lib/commands'
 import { listAtRow, stackBlocks } from './lib/layout'
@@ -32,6 +32,7 @@ const OPEN_KEY = 'open'
 const DEBUG_LOG_FILE = 'session-cockpit.debug.log'
 const FULLSCREEN_HINT = 'Full sidebar: set "tui": "fullscreen" in ~/.claude/settings.json'
 const WIDTH_HINT = 'Full sidebar: widen the terminal to 110 columns'
+const VS_CODE_TEXT = 'The sidebar is off in VS Code.'
 
 const WHEEL_LISTS: readonly (ListId & ToggleableSection)[] = ['skills', 'sessions', 'conversations', 'notes', 'files', 'mcp']
 
@@ -55,6 +56,18 @@ export async function openSidebar($: EngineInterface, isRaised: boolean) {
     columns: PANE_COLUMNS,
     ...(isRaised ? { focus: true as const } : {}),
   })
+}
+
+export async function isInVsCode($: EngineInterface, surface: RenderSurface | null) {
+  if (surface === 'vscode') return true
+
+  return surface === 'terminal' && (await $.env.get('TERM_PROGRAM')) === 'vscode'
+}
+
+async function isSessionInVsCode($: EngineInterface) {
+  const surfaces = await $.session.surfaces()
+
+  return (await Promise.all(surfaces.map(surface => isInVsCode($, surface)))).includes(true)
 }
 
 export async function isSidebarWanted($: EngineInterface) {
@@ -85,6 +98,7 @@ export async function runSidebarCommand($: EngineInterface, args: string) {
 
     return { text: `Sidebar trace (${trace.length} entries) written to ${path}` }
   }
+  if (await isSessionInVsCode($)) return { text: VS_CODE_TEXT }
 
   const pane = (await $.ui.panes()).find(open => open.id === PANE)
   record(`/sidebar: pane ${pane ? `shown=${pane.isShown} placed=${pane.isPlaced}` : 'absent'}`)
@@ -176,6 +190,13 @@ async function drawInlinePane($: EngineInterface, e: PaneInput, settings: Settin
 
 export async function drawPane($: EngineInterface, e: PaneInput, settings: Settings) {
   paneOffset = e.props.scroll.offset
+  if (await isInVsCode($, e.surface)) {
+    record(`${e.surface} in VS Code: closed the sidebar`)
+    void $.ui.close({ id: PANE }).catch(() => undefined)
+    const { Box } = $.ui.resolve(e)
+
+    return <Box />
+  }
   if (e.props.placement === 'inline') return drawInlinePane($, e, settings)
   const { Box } = $.ui.resolve(e)
   const [logo, header, keepAwake, context, limits, skills, sessions, conversations, notes, files, mcp, activity, todos, help, settingsSection, footer] =

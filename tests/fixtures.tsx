@@ -215,6 +215,7 @@ export const givenEngine = (
     deadPids: number[]
     isPsFailing: boolean
     env: Record<string, string>
+    surfaces: ('terminal' | 'vscode')[]
     platform: string
     spawn: {
       plans: Record<string, 'run' | 'exit' | 'fail'>
@@ -275,6 +276,7 @@ export const givenEngine = (
     deadPids: [],
     isPsFailing: false,
     env: {},
+    surfaces: ['terminal'],
     platform: 'Darwin',
     spawn: { plans: {}, started: [], killed: [], endings: {} },
     editOutcome: 'done',
@@ -318,6 +320,7 @@ export const givenEngine = (
   on('session.model', () => ({ value: world.model }))
   on('session.version', () => ({ value: { version: '2.1.306' } }))
   on('env.get', (_, e) => ({ value: e.name === 'HOME' ? world.home : world.env[e.name] }))
+  on('session.surfaces', () => ({ value: world.surfaces }))
   on('store.get', (_, e) => ({ value: world.store[e.key] }))
   on('store.set', (_, e) => {
     world.store[e.key] = e.value

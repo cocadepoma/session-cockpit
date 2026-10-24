@@ -30,6 +30,10 @@ Claude Code docks a pane beside the chat only in its fullscreen layout, from 110
 
 Without fullscreen (the default layout, and tmux by default), Claude Code places a pane above the prompt instead, so the sidebar does not open by itself. `/sidebar` shows a compact view there: the model and effort, the context bar and the usage limits, with a line saying how to get the full sidebar. Nothing in it can be pressed, because the terminal reports clicks only in fullscreen. A fullscreen terminal narrower than 110 columns shows the same compact view, with a line asking for a wider terminal. The mobile app shows the compact view too.
 
+### VS Code
+
+The sidebar stays hidden in VS Code: in the Claude Code extension and in `claude` run from VS Code's integrated terminal (`TERM_PROGRAM=vscode`). It does not open by itself there, and `/sidebar` answers `The sidebar is off in VS Code.` Other sessions still open it as before.
+
 ## What it shows
 
 | Section | What you see | What you can do |

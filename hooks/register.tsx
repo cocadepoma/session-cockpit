@@ -23,6 +23,7 @@ import { forgetContext, refreshUsage, setContextTokens } from './sections/usage'
 import {
   canPaneMove,
   drawPane,
+  isInVsCode,
   isSidebarWanted,
   openSidebar,
   registerSidebarCommand,
@@ -48,7 +49,7 @@ export const register: Register = (on, options) => {
     await pruneSnapshots($)
     await pruneAgents($)
     await pruneCost($)
-    if (await isSidebarWanted($)) void openSidebar($, false)
+    if ((await isSidebarWanted($)) && !(await isInVsCode($, e.surface))) void openSidebar($, false)
 
     return next(e)
   })
