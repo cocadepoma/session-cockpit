@@ -4,6 +4,8 @@ An opencode-style session sidebar for Claude Code. It docks beside the chat and 
 
 It is a Claude Code **mod**: a hooks module that draws a pane. It needs no server, no API key and no network access.
 
+![The session-cockpit sidebar docked beside a Claude Code conversation](docs/images/sidebar.png)
+
 ## Install
 
 At the prompt of a Claude Code terminal session:
@@ -35,6 +37,8 @@ Without fullscreen (the default layout, and tmux by default), Claude Code places
 The sidebar stays hidden in VS Code: in the Claude Code extension and in `claude` run from VS Code's integrated terminal (`TERM_PROGRAM=vscode`). It does not open by itself there, and `/sidebar` answers `The sidebar is off in VS Code.` Other sessions still open it as before.
 
 ## What it shows
+
+<img src="docs/images/sidebar-settings.png" alt="The sidebar with the Settings section unfolded" width="420">
 
 | Section | What you see | What you can do |
 |---|---|---|
