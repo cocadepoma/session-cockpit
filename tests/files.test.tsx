@@ -141,6 +141,41 @@ test('a file whose content is back to its baseline shows that nothing changed', 
   await ui.unmount()
 })
 
+test('the Back button is the primary action and answers the b hotkey', async ($, on) => {
+  const { world } = givenEngine(on)
+  world.store.filesOpen = true
+  world.files[SRC_FILE] = 'one\ntwo\nthree\n'
+  await $.session.start({ cwd: '/home/dev/app', surface: 'terminal', isInteractive: true })
+  await $.tool.call(editFile(SRC_FILE, 'two', 'TWO'))
+  const ui = await $.ui.mount({ ...PANE, surface: 'terminal' })
+  await ui.press({ key: `file:${SRC_FILE}` })
+
+  const back = await ui.find({ type: 'Button', key: 'diff-back' })
+
+  expect(back?.props.hotkey).toBe('b')
+  expect(back?.props.variant).toBe('primary')
+  await ui.unmount()
+})
+
+test('a new conversation closes an open diff and brings the sections back', async ($, on) => {
+  const clock = mock.clock(on, { now: NOW })
+  const { world } = givenEngine(on, { usesMockClock: true })
+  world.store.filesOpen = true
+  world.files[SRC_FILE] = 'one\n'
+  await $.session.start({ cwd: '/home/dev/app', surface: 'terminal', isInteractive: true })
+  await $.tool.call(editFile(SRC_FILE, 'one', 'two'))
+  const ui = await $.ui.mount({ ...PANE, surface: 'terminal' })
+  await ui.press({ key: `file:${SRC_FILE}` })
+  expect(await ui.find({ type: 'Code' })).toBeDefined()
+
+  world.sessionId = 'other'
+  await clock.advance(1_000)
+
+  expect(await ui.find({ type: 'Code' })).toBeUndefined()
+  expect((await ui.find({ type: 'Text', text: /^Files$/ }))?.text).toBe('Files')
+  await ui.unmount()
+})
+
 test('a diff over the size cap is cut at a hunk boundary and says so', async ($, on) => {
   const { world } = givenEngine(on)
   world.store.filesOpen = true
