@@ -20,6 +20,16 @@ claude plugin install session-cockpit --marketplace cocadepoma/session-cockpit
 
 The sidebar opens by itself when the terminal is wide enough to dock it beside the chat. Type `/sidebar` to show or hide it; closing it with its close mark is remembered.
 
+### Fullscreen
+
+Claude Code docks a pane beside the chat only in its fullscreen layout, from 110 columns. Turn the layout on in `~/.claude/settings.json` and restart Claude Code:
+
+```json
+{ "tui": "fullscreen" }
+```
+
+Without fullscreen (the default layout, and tmux by default), Claude Code places a pane above the prompt instead, so the sidebar does not open by itself. `/sidebar` shows a compact view there: the model and effort, the context bar and the usage limits, with a line saying how to get the full sidebar. Nothing in it can be pressed, because the terminal reports clicks only in fullscreen. A fullscreen terminal narrower than 110 columns shows the same compact view, with a line asking for a wider terminal. The mobile app shows the compact view too.
+
 ## What it shows
 
 | Section | What you see | What you can do |
@@ -86,6 +96,7 @@ The header, Settings and footer are always shown. The Settings section writes th
 ## Requirements
 
 - A Claude Code build that loads mods (hooks modules).
+- For the full sidebar, Claude Code's fullscreen layout (`"tui": "fullscreen"`) and a terminal at least 110 columns wide; otherwise a compact view (see [Fullscreen](#fullscreen)).
 - macOS or Linux. Windows is not supported.
 - On the `PATH`: `git`, `diff`, `grep`, `ps`, `uname`, `rm`.
 - Keep awake uses `caffeinate` on macOS (`-t` sets the duration). On Linux it picks by desktop: `kde-inhibit` (KDE), `gnome-session-inhibit` (GNOME, Budgie), `mate-session-inhibit` (MATE), else `systemd-inhibit`; a timed run holds with `timeout` (or `sleep` without a session pid), so the system ends it even if the mod restarts. KDE and MATE run the hold under `setpriv`, so it ends with the inhibitor. `∞` needs the session's pid; without it Keep awake is not available. Desktops where this was not verified show `unverified here` next to the switch; where nothing works, a message says so and the switch stays off.

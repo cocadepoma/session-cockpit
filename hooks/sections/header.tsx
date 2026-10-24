@@ -138,6 +138,19 @@ type PickerRow = {
   isLocked: boolean
 }
 
+export async function drawModelLine($: EngineInterface, e: PaneInput) {
+  const { Box, Text } = $.ui.resolve(e)
+  const model = await read($, modelState).then(shown(modelState))
+  if (model.model === '') return null
+
+  return (
+    <Box flexDirection="row" gap={1}>
+      <Text color="claude">{truncate(formatModel(model.model), rowWidth(e) - MODEL_BUTTON_RESERVED_COLUMNS)}</Text>
+      {model.effort !== null && <Text color="inactive">{`· ${model.effort}`}</Text>}
+    </Box>
+  )
+}
+
 export async function drawHeader($: EngineInterface, e: PaneInput): Promise<Block> {
   const { Box, Button, Text } = $.ui.resolve(e)
   const [title, model, git, isPickerOpen, isLocked] = await Promise.all([

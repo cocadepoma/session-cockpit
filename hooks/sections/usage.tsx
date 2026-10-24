@@ -209,6 +209,28 @@ export async function drawContext($: EngineInterface, e: PaneInput, thresholds: 
   return { element, rows }
 }
 
+function drawLimitRow($: EngineInterface, e: PaneInput, limit: SidebarRateLimit, checkedAt: number) {
+  const { Box, Text } = $.ui.resolve(e)
+  const remaining = formatRemaining(limit.resetsAt, checkedAt)
+  const projected = projectedPercent(limit, checkedAt)
+
+  return (
+    <Box key={limit.kind} flexDirection="row" gap={1}>
+      <Text color="inactive">{RATE_LIMIT_LABELS[limit.kind] ?? truncate(limit.kind, RATE_LIMIT_LABEL_MAX)}</Text>
+      {drawBar(
+        $,
+        e,
+        limit.percentUsed,
+        RATE_LIMIT_COLORS[limit.kind] ?? RATE_LIMIT_FALLBACK_COLOR,
+        projected === null ? 0 : PACE_MARK_COLUMNS,
+      )}
+      <Text color={levelColor(limit.percentUsed)}>{`${Math.round(limit.percentUsed)}%`}</Text>
+      {remaining !== null && <Text color="inactive">{remaining}</Text>}
+      {projected !== null && <Text color={projected >= 100 ? 'error' : 'warning'}>{`▲ ${projected}%`}</Text>}
+    </Box>
+  )
+}
+
 export async function drawLimits($: EngineInterface, e: PaneInput): Promise<Block | null> {
   const { Box, Text } = $.ui.resolve(e)
   const [limits, cost] = await Promise.all([read($, limitsState).then(shown(limitsState)), readCostTotals($)])
@@ -228,28 +250,36 @@ export async function drawLimits($: EngineInterface, e: PaneInput): Promise<Bloc
           <Text color="inactive">{`today ${formatUsd(cost.today)} · 7d ${formatUsd(cost.week)}`}</Text>
         </Box>
       )}
-      {limits.items.map(limit => {
-        const remaining = formatRemaining(limit.resetsAt, limits.checkedAt)
-        const projected = projectedPercent(limit, limits.checkedAt)
-
-        return (
-          <Box key={limit.kind} flexDirection="row" gap={1}>
-            <Text color="inactive">{RATE_LIMIT_LABELS[limit.kind] ?? truncate(limit.kind, RATE_LIMIT_LABEL_MAX)}</Text>
-            {drawBar(
-              $,
-              e,
-              limit.percentUsed,
-              RATE_LIMIT_COLORS[limit.kind] ?? RATE_LIMIT_FALLBACK_COLOR,
-              projected === null ? 0 : PACE_MARK_COLUMNS,
-            )}
-            <Text color={levelColor(limit.percentUsed)}>{`${Math.round(limit.percentUsed)}%`}</Text>
-            {remaining !== null && <Text color="inactive">{remaining}</Text>}
-            {projected !== null && <Text color={projected >= 100 ? 'error' : 'warning'}>{`▲ ${projected}%`}</Text>}
-          </Box>
-        )
-      })}
+      {limits.items.map(limit => drawLimitRow($, e, limit, limits.checkedAt))}
     </Box>
   )
 
   return { element, rows }
+}
+
+export async function drawContextLine($: EngineInterface, e: PaneInput, thresholds: Thresholds) {
+  const { Box, Text } = $.ui.resolve(e)
+  const context = await read($, contextState).then(shown(contextState))
+
+  return (
+    <Box flexDirection="row" gap={1}>
+      <Text bold>Context</Text>
+      {context.percent === null ? (
+        <Text color="inactive">No usage yet</Text>
+      ) : (
+        <Box flexDirection="row" gap={1}>
+          {drawBar($, e, context.percent, levelColor(context.percent, thresholds))}
+          <Text color={levelColor(context.percent, thresholds)}>{`${context.isEstimate ? '~' : ''}${context.percent}%`}</Text>
+        </Box>
+      )}
+    </Box>
+  )
+}
+
+export async function drawLimitLines($: EngineInterface, e: PaneInput) {
+  const { Box } = $.ui.resolve(e)
+  const limits = await read($, limitsState).then(shown(limitsState))
+  if (limits.items.length === 0) return null
+
+  return <Box flexDirection="column">{limits.items.map(limit => drawLimitRow($, e, limit, limits.checkedAt))}</Box>
 }

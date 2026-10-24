@@ -14,7 +14,7 @@ import { drawActivity } from './sections/activity'
 import { countConversations, drawConversations } from './sections/conversations'
 import { countFiles, drawFiles } from './sections/files'
 import { drawFooter } from './sections/footer'
-import { drawHeader } from './sections/header'
+import { drawHeader, drawModelLine } from './sections/header'
 import { drawHelp } from './sections/help'
 import { drawKeepAwake } from './sections/keepAwake'
 import { drawLogo } from './sections/logo'
@@ -24,17 +24,20 @@ import { countSessions, drawSessions } from './sections/sessions'
 import { drawSettings } from './sections/settings'
 import { countSkills, drawSkills } from './sections/skills'
 import { drawTodos } from './sections/todos'
-import { drawContext, drawLimits } from './sections/usage'
+import { drawContext, drawContextLine, drawLimitLines, drawLimits } from './sections/usage'
 
 const PANE_TITLE = 'Session'
 const PANE_COLUMNS = 42
 const OPEN_KEY = 'open'
 const DEBUG_LOG_FILE = 'session-cockpit.debug.log'
+const FULLSCREEN_HINT = 'Full sidebar: set "tui": "fullscreen" in ~/.claude/settings.json'
+const WIDTH_HINT = 'Full sidebar: widen the terminal to 110 columns'
 
 const WHEEL_LISTS: readonly (ListId & ToggleableSection)[] = ['skills', 'sessions', 'conversations', 'notes', 'files', 'mcp']
 
 let paneOffset = 0
 let listSpans: ReturnType<typeof stackBlocks> = []
+let isOpenedUnasked = false
 
 export const canPaneMove = (by: number, contentRows: number, bodyRows: number) =>
   by > 0 ? paneOffset < Math.max(0, contentRows - bodyRows) : paneOffset > 0
@@ -44,6 +47,8 @@ export const rememberPaneOffset = (offset: number) => {
 }
 
 export async function openSidebar($: EngineInterface, isRaised: boolean) {
+  isOpenedUnasked = !isRaised
+
   return $.ui.open({
     id: PANE,
     title: PANE_TITLE,
@@ -141,8 +146,37 @@ export async function scrollListUnderPointer($: EngineInterface, row: number, by
   return true
 }
 
+async function drawInlinePane($: EngineInterface, e: PaneInput, settings: Settings) {
+  const { Box, Text } = $.ui.resolve(e)
+  listSpans = []
+  const isTerminal = e.surface === 'terminal'
+  const isFullscreen = e.viewport?.isFullscreen === true
+  if (isTerminal && isOpenedUnasked && e.viewport?.isFullscreen === false) {
+    isOpenedUnasked = false
+    record('inline on the terminal: closed the sidebar the session opened by itself')
+    void $.ui.close({ id: PANE }).catch(() => undefined)
+
+    return <Box />
+  }
+  const [model, context, limits] = await Promise.all([
+    drawModelLine($, e),
+    settings.isShown('context') ? drawContextLine($, e, settings.thresholds) : null,
+    settings.isShown('usage') ? drawLimitLines($, e) : null,
+  ])
+
+  return (
+    <Box flexDirection="column" paddingX={1}>
+      {model}
+      {context}
+      {limits}
+      {isTerminal && <Text color="inactive">{isFullscreen ? WIDTH_HINT : FULLSCREEN_HINT}</Text>}
+    </Box>
+  )
+}
+
 export async function drawPane($: EngineInterface, e: PaneInput, settings: Settings) {
   paneOffset = e.props.scroll.offset
+  if (e.props.placement === 'inline') return drawInlinePane($, e, settings)
   const { Box } = $.ui.resolve(e)
   const [logo, header, keepAwake, context, limits, skills, sessions, conversations, notes, files, mcp, activity, todos, help, settingsSection, footer] =
     await Promise.all([
