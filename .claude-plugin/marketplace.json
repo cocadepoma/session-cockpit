@@ -1,0 +1,13 @@
+{
+  "name": "local-mods",
+  "owner": { "name": "Francisco Rodriguez", "url": "https://github.com/cocadepoma" },
+  "description": "An opencode-style session sidebar mod for Claude Code",
+  "plugins": [
+    {
+      "name": "session-cockpit",
+      "source": "./",
+      "description": "An opencode-style session sidebar: title, model, git, context, usage and cost, skills, sessions and their agents, conversations, notes, changed files with diffs, MCP servers, todos and settings",
+      "author": { "name": "Francisco Rodriguez", "url": "https://github.com/cocadepoma" }
+    }
+  ]
+}

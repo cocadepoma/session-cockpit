@@ -1,0 +1,5 @@
+export const OWN_COMMAND = 'sidebar'
+export const NOTE_COMMAND = 'note'
+export const LOGO_COMMAND = 'logo'
+export const DEBUG_ARGUMENT = 'debug'
+export const LOGO_FILE_ARGUMENT = 'file'

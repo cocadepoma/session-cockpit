@@ -1,0 +1,103 @@
+{
+  "name": "session-cockpit",
+  "version": "0.23.0",
+  "description": "An opencode-style session sidebar: title, model, git, context, usage and cost, skills, sessions and their agents, conversations, notes, changed files with diffs, MCP servers, todos and settings",
+  "author": { "name": "Francisco Rodriguez", "url": "https://github.com/cocadepoma" },
+  "homepage": "https://github.com/cocadepoma/session-cockpit",
+  "repository": "https://github.com/cocadepoma/session-cockpit",
+  "license": "MIT",
+  "keywords": ["sidebar", "session", "context", "usage", "git", "diff", "notes", "mod"],
+  "types": "./types/index.d.ts",
+  "userConfig": {
+    "showLogo": {
+      "type": "boolean",
+      "title": "Show Logo",
+      "description": "Show the logo at the top of the sidebar",
+      "default": true
+    },
+    "showKeepAwake": {
+      "type": "boolean",
+      "title": "Show Keep awake",
+      "description": "Show the Keep awake section in the sidebar",
+      "default": true
+    },
+    "showContext": {
+      "type": "boolean",
+      "title": "Show Context",
+      "description": "Show the Context section in the sidebar",
+      "default": true
+    },
+    "showUsage": {
+      "type": "boolean",
+      "title": "Show Usage",
+      "description": "Show the Usage section in the sidebar",
+      "default": true
+    },
+    "showSkills": {
+      "type": "boolean",
+      "title": "Show Skills",
+      "description": "Show the Skills section in the sidebar",
+      "default": true
+    },
+    "showSessions": {
+      "type": "boolean",
+      "title": "Show Sessions",
+      "description": "Show the Sessions section in the sidebar",
+      "default": true
+    },
+    "showConversations": {
+      "type": "boolean",
+      "title": "Show Conversations",
+      "description": "Show the Conversations section in the sidebar",
+      "default": true
+    },
+    "showNotes": {
+      "type": "boolean",
+      "title": "Show Notes",
+      "description": "Show the Notes section in the sidebar",
+      "default": true
+    },
+    "showFiles": {
+      "type": "boolean",
+      "title": "Show Files",
+      "description": "Show the Files section in the sidebar",
+      "default": true
+    },
+    "showMcp": {
+      "type": "boolean",
+      "title": "Show MCP",
+      "description": "Show the MCP section in the sidebar",
+      "default": true
+    },
+    "showActivity": {
+      "type": "boolean",
+      "title": "Show Activity",
+      "description": "Show the Activity section in the sidebar",
+      "default": false
+    },
+    "showTodos": {
+      "type": "boolean",
+      "title": "Show Todo",
+      "description": "Show the Todo section in the sidebar",
+      "default": true
+    },
+    "showHelp": {
+      "type": "boolean",
+      "title": "Show Help",
+      "description": "Show the Help section in the sidebar",
+      "default": true
+    },
+    "contextWarning": {
+      "type": "number",
+      "title": "Context warning percent",
+      "description": "The context bar turns yellow from this percent (1-100, below the critical percent)",
+      "default": 70
+    },
+    "contextCritical": {
+      "type": "number",
+      "title": "Context critical percent",
+      "description": "The context bar turns red from this percent (1-100, above the warning percent)",
+      "default": 85
+    }
+  }
+}
