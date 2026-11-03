@@ -7,6 +7,7 @@ import type {
   SidebarDockerControl,
   SidebarDockerImage,
   SidebarDockerTab,
+  SidebarDockerVolume,
 } from '../../types'
 import {
   containerTarget,
@@ -21,6 +22,7 @@ import {
   refreshDocker,
   selectDockerTab,
   selectDockerTarget,
+  volumeTarget,
 } from '../data/docker'
 import { filterList, listWindow, readListFilter, readListOffset, readSectionOpen, setListFilter } from '../lib/lists'
 import { listBlock } from '../lib/layout'
@@ -58,7 +60,9 @@ const IMAGE_ACTIONS: readonly ActionButton[] = [{ key: 'delete', label: 'Delete'
 const TABS: readonly { id: SidebarDockerTab; label: string }[] = [
   { id: 'containers', label: 'Containers' },
   { id: 'images', label: 'Images' },
+  { id: 'volumes', label: 'Volumes' },
 ]
+const TAB_GAP = 2
 
 const stateColor = (container: SidebarDockerContainer) =>
   container.state === 'running' ? 'success' : isActiveContainer(container) ? 'warning' : 'inactive'
@@ -68,6 +72,15 @@ const matchingContainers = (docker: SidebarDocker, filter: string) =>
 
 const matchingImages = (docker: SidebarDocker, filter: string) => filterList(docker.images, filter, image => [imageLabel(image)])
 
+const matchingVolumes = (docker: SidebarDocker, filter: string) => filterList(docker.volumes, filter, volume => [volume.name])
+
+const matchingCount = (docker: SidebarDocker, tab: SidebarDockerTab, filter: string) =>
+  tab === 'containers'
+    ? matchingContainers(docker, filter).length
+    : tab === 'images'
+      ? matchingImages(docker, filter).length
+      : matchingVolumes(docker, filter).length
+
 const emptyText = (tab: SidebarDockerTab, hasItems: boolean) =>
   `No ${tab}${hasItems ? ' match' : ''}`
 
@@ -75,21 +88,36 @@ export async function countDocker($: EngineInterface) {
   const [docker, tab, filter] = await Promise.all([readDocker($), readDockerTab($), readListFilter($, 'docker')])
   if (docker.status !== 'ready') return 0
 
-  return tab === 'containers' ? matchingContainers(docker, filter).length : matchingImages(docker, filter).length
+  return matchingCount(docker, tab, filter)
+}
+
+const tabsWidth = (labels: readonly string[], gap: number) => labels.join('').length + gap * (labels.length - 1)
+
+// The tabs are counted as one row, so they tighten, then drop their counts, rather than wrap.
+const fitTabs = (docker: SidebarDocker, width: number) => {
+  const counts: Record<SidebarDockerTab, number | null> = {
+    containers: docker.containers.length,
+    images: docker.imagesReason === null ? docker.images.length : null,
+    volumes: docker.volumesReason === null ? docker.volumes.length : null,
+  }
+  const counted = TABS.map(({ id, label }) => (counts[id] === null ? label : `${label} ${counts[id]}`))
+  const plain = TABS.map(({ label }) => label)
+  for (const [labels, gap] of [[counted, TAB_GAP], [counted, 1], [plain, TAB_GAP]] as const) {
+    if (tabsWidth(labels, gap) <= width) return { labels, gap }
+  }
+
+  return { labels: plain, gap: 1 }
 }
 
 function drawTabs($: EngineInterface, e: PaneInput, docker: SidebarDocker, tab: SidebarDockerTab) {
   const { Box, Button, Text } = $.ui.resolve(e)
-  const counts: Record<SidebarDockerTab, string> = {
-    containers: ` ${docker.containers.length}`,
-    images: docker.imagesReason === null ? ` ${docker.images.length}` : '',
-  }
+  const { labels, gap } = fitTabs(docker, rowWidth(e))
 
   return (
-    <Box flexDirection="row" gap={2}>
-      {TABS.map(({ id, label }) => (
+    <Box key="docker-tabs" flexDirection="row" gap={gap}>
+      {TABS.map(({ id }, index) => (
         <Button key={`docker-tab:${id}`} plain onPress={() => void selectDockerTab($, id)}>
-          <Text bold={id === tab} color={id === tab ? ACTIVE_COLOR : 'inactive'}>{`${label}${counts[id]}`}</Text>
+          <Text bold={id === tab} color={id === tab ? ACTIVE_COLOR : 'inactive'}>{labels[index]}</Text>
         </Button>
       ))}
     </Box>
@@ -164,6 +192,57 @@ function drawImage($: EngineInterface, e: PaneInput, image: SidebarDockerImage, 
   return hasActionRow(control, target) ? [row, drawActions($, e, { target, actions: IMAGE_ACTIONS, control, now })] : [row]
 }
 
+function drawVolume($: EngineInterface, e: PaneInput, volume: SidebarDockerVolume, control: SidebarDockerControl) {
+  const target = volumeTarget(volume)
+
+  return [drawRow($, e, { target, label: volume.name, detail: volume.isInUse ? 'in use' : 'unused', control })]
+}
+
+type TabList = { total: number; start: number; shown: number; actionRows: number; rows: JSX.Element[]; hasItems: boolean; reason: string | null }
+
+type TabSource<T> = {
+  matching: T[]
+  all: readonly T[]
+  reason: string | null
+  targetOf: (item: T) => string
+  draw: (item: T) => JSX.Element[]
+}
+
+function tabWindow<T>({ matching, all, reason, targetOf, draw }: TabSource<T>, offset: number, control: SidebarDockerControl): TabList {
+  const { start, visible } = listWindow(matching, offset)
+
+  return {
+    total: matching.length,
+    start,
+    shown: visible.length,
+    actionRows: visible.map(targetOf).filter(target => hasActionRow(control, target)).length,
+    rows: visible.flatMap(draw),
+    hasItems: all.length > 0,
+    reason,
+  }
+}
+
+type ListOptions = { filter: string; offset: number; control: SidebarDockerControl; now: number }
+
+function drawTabList($: EngineInterface, e: PaneInput, docker: SidebarDocker, tab: SidebarDockerTab, options: ListOptions): TabList {
+  const { filter, offset, control, now } = options
+  if (tab === 'images') {
+    const draw = (image: SidebarDockerImage) => drawImage($, e, image, control, now)
+    const source = { matching: matchingImages(docker, filter), all: docker.images, reason: docker.imagesReason, targetOf: imageTarget, draw }
+
+    return tabWindow(source, offset, control)
+  }
+  if (tab === 'volumes') {
+    const draw = (volume: SidebarDockerVolume) => drawVolume($, e, volume, control)
+    const source = { matching: matchingVolumes(docker, filter), all: docker.volumes, reason: docker.volumesReason, targetOf: volumeTarget, draw }
+
+    return tabWindow(source, offset, control)
+  }
+  const draw = (container: SidebarDockerContainer) => drawContainer($, e, container, control, now)
+
+  return tabWindow({ matching: matchingContainers(docker, filter), all: docker.containers, reason: null, targetOf: containerTarget, draw }, offset, control)
+}
+
 export async function drawDocker($: EngineInterface, e: PaneInput): Promise<Block> {
   const { Box, Text } = $.ui.resolve(e)
   const [docker, tab, control, filter, offset, isOpen, now] = await Promise.all([
@@ -201,22 +280,12 @@ export async function drawDocker($: EngineInterface, e: PaneInput): Promise<Bloc
 
     return listBlock({ id: 'docker', element, isOpen, hasFilter: false, windowRows: 0, total: 0, hasNotice: true })
   }
-  const containers = matchingContainers(docker, filter)
-  const images = matchingImages(docker, filter)
-  const total = tab === 'containers' ? containers.length : images.length
-  const imagesReason = tab === 'images' ? docker.imagesReason : null
-  const hasItems = tab === 'containers' ? docker.containers.length > 0 : docker.images.length > 0
-  const emptyNotice = imagesReason === null ? emptyText(tab, hasItems) : truncate(imagesReason, rowWidth(e))
-  const containerWindow = listWindow(containers, offset)
-  const imageWindow = listWindow(images, offset)
-  const start = tab === 'containers' ? containerWindow.start : imageWindow.start
-  const shownCount = tab === 'containers' ? containerWindow.visible.length : imageWindow.visible.length
-  const shownTargets =
-    tab === 'containers' ? containerWindow.visible.map(containerTarget) : imageWindow.visible.map(imageTarget)
-  const actionRows = shownTargets.filter(target => hasActionRow(control, target)).length
+  const list = drawTabList($, e, docker, tab, { filter, offset, control, now })
+  const { total } = list
+  const emptyNotice = list.reason === null ? emptyText(tab, list.hasItems) : truncate(list.reason, rowWidth(e))
   const filterRow = drawFilter($, e, {
     id: 'docker',
-    placeholder: tab === 'containers' ? 'Filter containers…' : 'Filter images…',
+    placeholder: `Filter ${tab}…`,
     submitLabel: 'clear',
     value: filter,
     onSubmit: () => void setListFilter($, 'docker', ''),
@@ -228,10 +297,8 @@ export async function drawDocker($: EngineInterface, e: PaneInput): Promise<Bloc
       <Box key="docker-body" flexDirection="column" paddingLeft={SECTION_INDENT}>
         {drawTabs($, e, docker, tab)}
         {filterRow}
-        {tab === 'containers'
-          ? containerWindow.visible.flatMap(container => drawContainer($, e, container, control, now))
-          : imageWindow.visible.flatMap(image => drawImage($, e, image, control, now))}
-        {drawListScroller($, e, 'docker', { start, shown: shownCount, total })}
+        {list.rows}
+        {drawListScroller($, e, 'docker', { start: list.start, shown: list.shown, total })}
         {total === 0 && <Text color="inactive">{emptyNotice}</Text>}
       </Box>
     </Box>
@@ -242,7 +309,7 @@ export async function drawDocker($: EngineInterface, e: PaneInput): Promise<Bloc
     element,
     isOpen,
     hasFilter: filterRow !== null,
-    windowRows: shownCount + actionRows,
+    windowRows: list.shown + list.actionRows,
     total,
     hasNotice: total === 0,
     toolbarRows: TOOLBAR_ROWS,

@@ -8,6 +8,7 @@ import type {
   SidebarDockerControl,
   SidebarDockerImage,
   SidebarDockerTab,
+  SidebarDockerVolume,
 } from '../../types'
 import { shown } from '../lib/lastShown'
 import { readRawSectionOpen, setListFilter } from '../lib/lists'
@@ -23,6 +24,7 @@ const CONFIRM_MS = 5_000
 // Explicit fields, never `{{json .}}`: a template that touches .Size makes `docker ps` measure every container.
 const CONTAINER_FORMAT = ['{{.ID}}', '{{.Names}}', '{{.Image}}', '{{.State}}', '{{.Status}}'].join('\t')
 const IMAGE_FORMAT = ['{{.ID}}', '{{.Repository}}', '{{.Tag}}', '{{.Size}}'].join('\t')
+const VOLUME_FORMAT = ['{{.Name}}', '{{.Driver}}'].join('\t')
 const DAEMON_DOWN = /cannot connect to the docker daemon|is the docker daemon running/i
 const COMMAND_MISSING = /ENOENT|not found|no such file/i
 const ACTIVE_STATES: ReadonlySet<string> = new Set(['running', 'restarting', 'paused'])
@@ -32,7 +34,8 @@ export const NOT_RUNNING_REASON = 'Docker is not running'
 const MISSING_REASON = 'Docker CLI not found'
 const SILENT_REASON = 'Docker did not answer'
 
-const INITIAL_DOCKER: SidebarDocker = { status: 'unknown', reason: null, containers: [], images: [], imagesReason: null }
+const NO_VOLUMES: Pick<SidebarDocker, 'volumes' | 'volumesReason'> = { volumes: [], volumesReason: null }
+const INITIAL_DOCKER: SidebarDocker = { status: 'unknown', reason: null, containers: [], images: [], imagesReason: null, ...NO_VOLUMES }
 const INITIAL_CONTROL: SidebarDockerControl = { selected: null, armed: null, pending: [] }
 
 const DESTRUCTIVE: ReadonlySet<SidebarDockerAction> = new Set(['rm', 'rmi'])
@@ -60,6 +63,8 @@ export const containerTarget = (container: SidebarDockerContainer) => `container
 
 export const imageTarget = (image: SidebarDockerImage) => `image:${imageKey(image)}`
 
+export const volumeTarget = (volume: SidebarDockerVolume) => `volume:${volume.name}`
+
 const fieldsOf = (stdout: string, count: number) =>
   stdout
     .split('\n')
@@ -77,6 +82,18 @@ const parseContainers = (stdout: string) => {
 const parseImages = (stdout: string) =>
   fieldsOf(stdout, 4).map(([id = '', repository = '', tag = '', size = '']): SidebarDockerImage => ({ id, repository, tag, size }))
 
+// A dangling volume is one no container, running or stopped, refers to.
+const parseVolumes = (stdout: string, danglingStdout: string) => {
+  const dangling = new Set(danglingStdout.split('\n').filter(name => name !== ''))
+
+  return fieldsOf(stdout, 2).map(([name = '', driver = '']): SidebarDockerVolume => ({ name, driver, isInUse: !dangling.has(name) }))
+}
+
+type RunResult = Awaited<ReturnType<typeof runDocker>> | { error: unknown }
+
+const runReason = (result: RunResult) =>
+  'error' in result ? errorReason(result.error) : result.exitCode === 0 ? null : failureReason(result.stderr, result.exitCode)
+
 export const failureReason = (stderr: string, exitCode: number) =>
   DAEMON_DOWN.test(stderr) ? NOT_RUNNING_REASON : firstLine(stderr) || `docker exited with ${exitCode}`
 
@@ -88,6 +105,7 @@ const unavailable = (reason: string): SidebarDocker => ({
   containers: [],
   images: [],
   imagesReason: null,
+  ...NO_VOLUMES,
 })
 
 export function runDocker($: EngineInterface, argv: readonly string[], timeoutMs = PROCESS_TIMEOUT_MS) {
@@ -95,14 +113,16 @@ export function runDocker($: EngineInterface, argv: readonly string[], timeoutMs
 }
 
 async function readSnapshot($: EngineInterface): Promise<SidebarDocker> {
-  const [containers, images] = await Promise.all([
+  const [containers, images, volumes, dangling] = await Promise.all([
     runDocker($, ['ps', '--all', '--format', CONTAINER_FORMAT]).catch((error: unknown) => ({ error })),
     runDocker($, ['images', '--format', IMAGE_FORMAT]).catch((error: unknown) => ({ error })),
+    runDocker($, ['volume', 'ls', '--format', VOLUME_FORMAT]).catch((error: unknown) => ({ error })),
+    runDocker($, ['volume', 'ls', '--filter', 'dangling=true', '--format', '{{.Name}}']).catch((error: unknown) => ({ error })),
   ])
   if ('error' in containers) return unavailable(errorReason(containers.error))
   if (containers.exitCode !== 0) return unavailable(failureReason(containers.stderr, containers.exitCode))
-  const imagesReason =
-    'error' in images ? errorReason(images.error) : images.exitCode === 0 ? null : failureReason(images.stderr, images.exitCode)
+  const imagesReason = runReason(images)
+  const volumesReason = runReason(volumes) ?? runReason(dangling)
 
   return {
     status: 'ready',
@@ -110,11 +130,17 @@ async function readSnapshot($: EngineInterface): Promise<SidebarDocker> {
     containers: parseContainers(containers.stdout),
     images: imagesReason === null && !('error' in images) ? parseImages(images.stdout) : [],
     imagesReason,
+    volumes:
+      volumesReason === null && !('error' in volumes) && !('error' in dangling) ? parseVolumes(volumes.stdout, dangling.stdout) : [],
+    volumesReason,
   }
 }
 
+// A reload keeps $.state, so a snapshot taken before volumes existed lacks them until the next read.
 export async function readDocker($: EngineInterface) {
-  return read($, dockerState).then(shown(dockerState))
+  return read($, dockerState)
+    .then(shown(dockerState))
+    .then(docker => ({ ...NO_VOLUMES, ...docker }))
 }
 
 export async function readDockerTab($: EngineInterface) {

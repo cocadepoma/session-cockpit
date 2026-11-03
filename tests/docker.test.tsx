@@ -1,7 +1,7 @@
 import { expect, mock, test } from 'claude-code/testing'
 import type { TestBody } from 'claude-code/testing'
 import type { On } from 'claude-code'
-import { APP, NOW, PANE, dockerContainer, dockerImage, givenEngine, holdDocker } from './fixtures'
+import { APP, NOW, PANE, dockerContainer, dockerImage, dockerVolume, givenEngine, holdDocker } from './fixtures'
 
 const SHOWN = { options: { showDocker: true } }
 const SECTION_INDENT = 2
@@ -11,6 +11,11 @@ const MAILPIT = 'b9839b50e0f3'
 const WEB = 'a1b2c3d4e5f6'
 
 const dockerCalls = (ran: string[][]) => ran.filter(argv => argv[0] === 'docker').map(argv => argv[1])
+
+const READS = ['ps', 'images', 'volume', 'volume']
+
+const listedVolumes = async (ui: { findAll: (query: { type: 'Text'; text: RegExp }) => Promise<{ text?: string }[]> }) =>
+  (await ui.findAll({ type: 'Text', text: /^(pgdata|mailpit_data|build_cache)/ })).map(found => found.text)
 
 const listedContainers = async (ui: { findAll: (query: { type: 'Text'; text: RegExp }) => Promise<{ text?: string }[]> }) =>
   (await ui.findAll({ type: 'Text', text: /^api-/ })).map(found => found.text)
@@ -29,6 +34,8 @@ const givenDocker = async ($: Parameters<TestBody>[0], on: On, { isOpen = true, 
     dockerImage('47928bf67eb6', 'nginx', 'stable-alpine', '93.1MB'),
     dockerImage('0123456789ab', '<none>', '<none>', '12MB'),
   ]
+  engine.world.docker.volumes = [dockerVolume('build_cache'), dockerVolume('mailpit_data'), dockerVolume('pgdata')]
+  engine.world.docker.danglingVolumes = ['build_cache']
   await $.session.start({ cwd: APP, surface: 'terminal', isInteractive: true })
 
   return { ...engine, clock }
@@ -62,7 +69,7 @@ test('opening Docker lists the containers, running first, with their state and t
   await ui.press({ key: 'docker-toggle' })
 
   expect(world.store.dockerOpen).toBe(true)
-  expect(dockerCalls(world.ran)).toEqual(['ps', 'images'])
+  expect(dockerCalls(world.ran)).toEqual(READS)
   expect(world.ran.find(argv => argv[1] === 'ps')).toEqual([
     'docker',
     'ps',
@@ -100,6 +107,101 @@ test('the Images tab lists each image reference with its size, and a dangling im
   await ui.press({ key: 'docker-tab:containers' })
   expect(await listedContainers(ui)).toEqual(['api-mailpit-1', 'api-postgres-1'])
   await ui.unmount()
+})
+
+test('the Volumes tab lists each volume by name, in use or unused', SHOWN, async ($, on) => {
+  await givenDocker($, on)
+  const ui = await $.ui.mount({ ...PANE, surface: 'terminal' })
+  expect((await ui.find({ type: 'Text', text: /^Volumes/ }))?.text).toBe('Volumes 3')
+
+  await ui.press({ key: 'docker-tab:volumes' })
+
+  expect(await listedContainers(ui)).toEqual([])
+  expect(await listedVolumes(ui)).toEqual(['build_cache', 'mailpit_data', 'pgdata'])
+  expect((await ui.findAll({ type: 'Text', text: /^(in use|unused)$/ })).map(found => [found.text, found.props.color])).toEqual([
+    ['unused', 'inactive'],
+    ['in use', 'inactive'],
+    ['in use', 'inactive'],
+  ])
+  expect((await ui.find({ type: 'Text', text: /^(Containers|Images|Volumes) \d+$/ }))?.props.color).toBe('inactive')
+
+  await ui.press({ key: 'docker-tab:containers' })
+  expect(await listedContainers(ui)).toEqual(['api-mailpit-1', 'api-postgres-1'])
+  await ui.unmount()
+})
+
+test('opening Docker reads the volumes, and which of them no container uses, with the containers and images', SHOWN, async ($, on) => {
+  const { world } = await givenDocker($, on, { isOpen: false, usesMockClock: true })
+  const ui = await $.ui.mount({ ...PANE, surface: 'terminal' })
+
+  await ui.press({ key: 'docker-toggle' })
+
+  expect(dockerCalls(world.ran)).toEqual(READS)
+  expect(world.ran.filter(argv => argv[1] === 'volume')).toEqual([
+    ['docker', 'volume', 'ls', '--format', '{{.Name}}\t{{.Driver}}'],
+    ['docker', 'volume', 'ls', '--filter', 'dangling=true', '--format', '{{.Name}}'],
+  ])
+  await ui.unmount()
+})
+
+test('the filter narrows the volumes by name', SHOWN, async ($, on) => {
+  await givenDocker($, on)
+  const ui = await $.ui.mount({ ...PANE, surface: 'terminal' })
+  await ui.press({ key: 'docker-tab:volumes' })
+
+  await ui.input({ key: 'docker-filter', text: 'data', kind: 'change' })
+  expect(await listedVolumes(ui)).toEqual(['mailpit_data', 'pgdata'])
+
+  await ui.input({ key: 'docker-filter', text: 'zzz', kind: 'change' })
+  expect((await ui.find({ type: 'Text', text: /^No volumes match$/ }))?.text).toBe('No volumes match')
+  await ui.unmount()
+})
+
+test('no volumes reads as such', SHOWN, async ($, on) => {
+  const { world } = await givenDocker($, on)
+  world.docker.volumes = []
+  await $.tool.call({ tool: 'Bash', command: 'true' })
+  const ui = await $.ui.mount({ ...PANE, surface: 'terminal' })
+
+  await ui.press({ key: 'docker-tab:volumes' })
+
+  expect((await ui.find({ type: 'Text', text: /^No volumes$/ }))?.text).toBe('No volumes')
+  await ui.unmount()
+})
+
+test('a failing docker volume ls shows its reason in the Volumes tab and leaves the containers listed', SHOWN, async ($, on) => {
+  const { world } = await givenDocker($, on)
+  world.docker.volumesFailure = { exitCode: 1, stderr: 'permission denied while listing volumes\n' }
+  await $.tool.call({ tool: 'Bash', command: 'true' })
+  const ui = await $.ui.mount({ ...PANE, surface: 'terminal' })
+
+  expect(await listedContainers(ui)).toEqual(['api-mailpit-1', 'api-postgres-1'])
+  expect((await ui.find({ type: 'Text', text: /^Volumes/ }))?.text).toBe('Volumes')
+
+  await ui.press({ key: 'docker-tab:volumes' })
+  expect((await ui.find({ type: 'Text', text: /^permission denied/ }))?.text).toBe('permission denied while listing vol…')
+  expect(await ui.find({ type: 'Text', text: /^No volumes$/ })).toBeUndefined()
+  await ui.unmount()
+})
+
+test('the three tabs stay on one row in a narrow pane, dropping their counts when they do not fit', SHOWN, async ($, on) => {
+  await givenDocker($, on)
+  const tabsAt = async (bodyColumns: number) => {
+    const ui = await $.ui.mount({ ...PANE, surface: 'terminal', props: { ...PANE.props, bodyColumns } })
+    const labels = (await ui.findAll({ type: 'Text', text: /^(Containers|Images|Volumes)/ })).map(found => found.text ?? '')
+    const gap = Number((await ui.find({ key: 'docker-tabs' }))?.props.gap)
+    await ui.unmount()
+
+    return { labels, width: labels.join('').length + gap * (labels.length - 1) }
+  }
+
+  const wide = await tabsAt(40)
+  expect(wide.labels).toEqual(['Containers 2', 'Images 3', 'Volumes 3'])
+  expect(wide.width).toBeLessThanOrEqual(40 - 2 - SECTION_INDENT)
+
+  const narrow = await tabsAt(30)
+  expect(narrow.labels).toEqual(['Containers', 'Images', 'Volumes'])
+  expect(narrow.width).toBeLessThanOrEqual(30 - 2 - SECTION_INDENT)
 })
 
 test('the filter narrows the containers by name or image', SHOWN, async ($, on) => {
@@ -290,7 +392,7 @@ test('while open and shown, Docker polls every five seconds', SHOWN, async ($, o
 
   await clock?.advance(5_000)
 
-  expect(dockerCalls(world.ran)).toEqual(['ps', 'images'])
+  expect(dockerCalls(world.ran)).toEqual(READS)
 })
 
 test('folded, or with the sidebar closed, Docker does not poll', SHOWN, async ($, on) => {
@@ -325,7 +427,9 @@ test('more than eight containers scroll in windows of eight', SHOWN, async ($, o
 })
 
 const actionCalls = (ran: string[][]) =>
-  ran.filter(argv => argv[0] === 'docker' && !['ps', 'images'].includes(argv[1] ?? '')).map(argv => argv.slice(1))
+  ran
+    .filter(argv => argv[0] === 'docker' && !['ps', 'images'].includes(argv[1] ?? '') && !(argv[1] === 'volume' && argv[2] === 'ls'))
+    .map(argv => argv.slice(1))
 
 const actionLabels = async (ui: { findAll: (query: { type: 'Text'; text: RegExp }) => Promise<{ text?: string }[]> }) =>
   (await ui.findAll({ type: 'Text', text: /^(Restart|Stop|Start|Delete|Confirm delete)$/ })).map(found => found.text)
@@ -360,7 +464,7 @@ for (const [action, label, container, after] of [
     await ui.press({ key: `docker-${action}` })
 
     expect(actionCalls(world.ran)).toEqual([[action, '--', container]])
-    expect(dockerCalls(world.ran).slice(1)).toEqual(['ps', 'images'])
+    expect(dockerCalls(world.ran).slice(1)).toEqual(READS)
     expect(await actionLabels(ui)).toEqual([...after])
     expect(toasts).toEqual([])
     await ui.unmount()
