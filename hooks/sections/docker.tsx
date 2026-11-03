@@ -13,6 +13,7 @@ import {
   imageLabel,
   imageTarget,
   isActiveContainer,
+  isArmed,
   pressDockerAction,
   readDocker,
   readDockerControl,
@@ -78,13 +79,16 @@ export async function countDocker($: EngineInterface) {
 
 function drawTabs($: EngineInterface, e: PaneInput, docker: SidebarDocker, tab: SidebarDockerTab) {
   const { Box, Button, Text } = $.ui.resolve(e)
-  const counts: Record<SidebarDockerTab, number> = { containers: docker.containers.length, images: docker.images.length }
+  const counts: Record<SidebarDockerTab, string> = {
+    containers: ` ${docker.containers.length}`,
+    images: docker.imagesReason === null ? ` ${docker.images.length}` : '',
+  }
 
   return (
     <Box flexDirection="row" gap={2}>
       {TABS.map(({ id, label }) => (
         <Button key={`docker-tab:${id}`} plain onPress={() => void selectDockerTab($, id)}>
-          <Text bold={id === tab} color={id === tab ? 'text' : 'inactive'}>{`${label} ${counts[id]}`}</Text>
+          <Text bold={id === tab} color={id === tab ? 'text' : 'inactive'}>{`${label}${counts[id]}`}</Text>
         </Button>
       ))}
     </Box>
@@ -97,17 +101,19 @@ const pendingOf = (control: SidebarDockerControl, target: string) =>
 const hasActionRow = (control: SidebarDockerControl, target: string) =>
   control.selected === target && pendingOf(control, target) === null
 
-function drawActions($: EngineInterface, e: PaneInput, target: string, actions: readonly ActionButton[], control: SidebarDockerControl) {
+type ActionsOptions = { target: string; actions: readonly ActionButton[]; control: SidebarDockerControl; now: number }
+
+function drawActions($: EngineInterface, e: PaneInput, { target, actions, control, now }: ActionsOptions) {
   const { Box, Button, Text } = $.ui.resolve(e)
 
   return (
     <Box key={`docker-actions:${target}`} flexDirection="row" gap={2} paddingLeft={2}>
       {actions.map(({ key, label, action }) => {
-        const isArmed = control.armed === target && key === 'delete'
+        const isConfirming = key === 'delete' && isArmed(control, target, now)
 
         return (
           <Button key={`docker-${key}`} plain onPress={() => void pressDockerAction($, target, action)}>
-            <Text color={isArmed ? 'error' : 'suggestion'}>{isArmed ? 'Confirm delete' : label}</Text>
+            <Text color={isConfirming ? 'error' : 'suggestion'}>{isConfirming ? 'Confirm delete' : label}</Text>
           </Button>
         )
       })}
@@ -136,32 +142,33 @@ function drawRow($: EngineInterface, e: PaneInput, { target, label, detail, mark
   )
 }
 
-function drawContainer($: EngineInterface, e: PaneInput, container: SidebarDockerContainer, control: SidebarDockerControl) {
+function drawContainer($: EngineInterface, e: PaneInput, container: SidebarDockerContainer, control: SidebarDockerControl, now: number) {
   const { Text } = $.ui.resolve(e)
   const target = containerTarget(container)
   const marker = <Text color={stateColor(container)}>●</Text>
   const row = drawRow($, e, { target, label: container.name, detail: container.state, marker, control })
   const actions = isActiveContainer(container) ? RUNNING_ACTIONS : STOPPED_ACTIONS
 
-  return hasActionRow(control, target) ? [row, drawActions($, e, target, actions, control)] : [row]
+  return hasActionRow(control, target) ? [row, drawActions($, e, { target, actions, control, now })] : [row]
 }
 
-function drawImage($: EngineInterface, e: PaneInput, image: SidebarDockerImage, control: SidebarDockerControl) {
+function drawImage($: EngineInterface, e: PaneInput, image: SidebarDockerImage, control: SidebarDockerControl, now: number) {
   const target = imageTarget(image)
   const row = drawRow($, e, { target, label: imageLabel(image), detail: image.size, control })
 
-  return hasActionRow(control, target) ? [row, drawActions($, e, target, IMAGE_ACTIONS, control)] : [row]
+  return hasActionRow(control, target) ? [row, drawActions($, e, { target, actions: IMAGE_ACTIONS, control, now })] : [row]
 }
 
 export async function drawDocker($: EngineInterface, e: PaneInput): Promise<Block> {
   const { Box, Text } = $.ui.resolve(e)
-  const [docker, tab, control, filter, offset, isOpen] = await Promise.all([
+  const [docker, tab, control, filter, offset, isOpen, now] = await Promise.all([
     readDocker($),
     readDockerTab($),
     readDockerControl($),
     readListFilter($, 'docker'),
     readListOffset($, 'docker'),
     readSectionOpen($, 'docker'),
+    $.clock.now(),
   ])
   const isReady = docker.status === 'ready'
   const runningCount = docker.containers.filter(isActiveContainer).length
@@ -188,7 +195,9 @@ export async function drawDocker($: EngineInterface, e: PaneInput): Promise<Bloc
   const containers = matchingContainers(docker, filter)
   const images = matchingImages(docker, filter)
   const total = tab === 'containers' ? containers.length : images.length
+  const imagesReason = tab === 'images' ? docker.imagesReason : null
   const hasItems = tab === 'containers' ? docker.containers.length > 0 : docker.images.length > 0
+  const emptyNotice = imagesReason === null ? emptyText(tab, hasItems) : truncate(imagesReason, rowWidth(e))
   const containerWindow = listWindow(containers, offset)
   const imageWindow = listWindow(images, offset)
   const start = tab === 'containers' ? containerWindow.start : imageWindow.start
@@ -210,10 +219,10 @@ export async function drawDocker($: EngineInterface, e: PaneInput): Promise<Bloc
       {drawTabs($, e, docker, tab)}
       {filterRow}
       {tab === 'containers'
-        ? containerWindow.visible.flatMap(container => drawContainer($, e, container, control))
-        : imageWindow.visible.flatMap(image => drawImage($, e, image, control))}
+        ? containerWindow.visible.flatMap(container => drawContainer($, e, container, control, now))
+        : imageWindow.visible.flatMap(image => drawImage($, e, image, control, now))}
       {drawListScroller($, e, 'docker', { start, shown: shownCount, total })}
-      {total === 0 && <Text color="inactive">{emptyText(tab, hasItems)}</Text>}
+      {total === 0 && <Text color="inactive">{emptyNotice}</Text>}
     </Box>
   )
 

@@ -243,6 +243,7 @@ export const givenEngine = (
       images: string[]
       failure: { exitCode: number; stderr: string } | 'missing' | null
       actionFailure: { exitCode: number; stderr: string } | 'missing' | null
+      imagesFailure: { exitCode: number; stderr: string } | null
       gate: { promise: Promise<void>; release: () => void } | null
       actionTimeouts: (number | undefined)[]
     }
@@ -298,7 +299,7 @@ export const givenEngine = (
       untracked: [],
       isFailing: false,
     },
-    docker: { containers: [], images: [], failure: null, actionFailure: null, gate: null, actionTimeouts: [] },
+    docker: { containers: [], images: [], failure: null, actionFailure: null, imagesFailure: null, gate: null, actionTimeouts: [] },
   }
 
   on('command.register', (_, e) => {
@@ -401,6 +402,9 @@ export const givenEngine = (
       if (docker.failure === 'missing') return { deny: 'spawn docker ENOENT' }
       if (docker.failure !== null) return ran(docker.failure.exitCode, '', docker.failure.stderr)
       if (args[0] === 'ps') return ran(0, docker.containers.map(line => `${line}\n`).join(''))
+      if (args[0] === 'images' && docker.imagesFailure !== null) {
+        return ran(docker.imagesFailure.exitCode, '', docker.imagesFailure.stderr)
+      }
       if (args[0] === 'images') return ran(0, docker.images.map(line => `${line}\n`).join(''))
       if (!DOCKER_ACTIONS.includes(args[0] ?? '')) return ran(0, '')
       docker.actionTimeouts.push(e.init?.timeoutMs)

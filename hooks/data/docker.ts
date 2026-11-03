@@ -32,7 +32,7 @@ export const NOT_RUNNING_REASON = 'Docker is not running'
 const MISSING_REASON = 'Docker CLI not found'
 const SILENT_REASON = 'Docker did not answer'
 
-const INITIAL_DOCKER: SidebarDocker = { status: 'unknown', reason: null, containers: [], images: [] }
+const INITIAL_DOCKER: SidebarDocker = { status: 'unknown', reason: null, containers: [], images: [], imagesReason: null }
 const INITIAL_CONTROL: SidebarDockerControl = { selected: null, armed: null, pending: [] }
 
 const DESTRUCTIVE: ReadonlySet<SidebarDockerAction> = new Set(['rm', 'rmi'])
@@ -82,7 +82,13 @@ export const failureReason = (stderr: string, exitCode: number) =>
 
 export const errorReason = (error: unknown) => (COMMAND_MISSING.test(describeError(error)) ? MISSING_REASON : SILENT_REASON)
 
-const unavailable = (reason: string): SidebarDocker => ({ status: 'unavailable', reason, containers: [], images: [] })
+const unavailable = (reason: string): SidebarDocker => ({
+  status: 'unavailable',
+  reason,
+  containers: [],
+  images: [],
+  imagesReason: null,
+})
 
 export function runDocker($: EngineInterface, argv: readonly string[], timeoutMs = PROCESS_TIMEOUT_MS) {
   return $.process.run(['docker', ...argv], { timeoutMs })
@@ -91,16 +97,19 @@ export function runDocker($: EngineInterface, argv: readonly string[], timeoutMs
 async function readSnapshot($: EngineInterface): Promise<SidebarDocker> {
   const [containers, images] = await Promise.all([
     runDocker($, ['ps', '--all', '--format', CONTAINER_FORMAT]).catch((error: unknown) => ({ error })),
-    runDocker($, ['images', '--format', IMAGE_FORMAT]).catch(() => null),
+    runDocker($, ['images', '--format', IMAGE_FORMAT]).catch((error: unknown) => ({ error })),
   ])
   if ('error' in containers) return unavailable(errorReason(containers.error))
   if (containers.exitCode !== 0) return unavailable(failureReason(containers.stderr, containers.exitCode))
+  const imagesReason =
+    'error' in images ? errorReason(images.error) : images.exitCode === 0 ? null : failureReason(images.stderr, images.exitCode)
 
   return {
     status: 'ready',
     reason: null,
     containers: parseContainers(containers.stdout),
-    images: images?.exitCode === 0 ? parseImages(images.stdout) : [],
+    images: imagesReason === null && !('error' in images) ? parseImages(images.stdout) : [],
+    imagesReason,
   }
 }
 
@@ -125,6 +134,11 @@ export async function readDockerControl($: EngineInterface) {
   return read($, dockerControlState)
 }
 
+// The deadline lives in the arm itself: a reload cancels the plugin's timers but keeps $.state, so
+// the timer only resets the label and never decides whether a press deletes.
+export const isArmed = (control: SidebarDockerControl, target: string, now: number) =>
+  control.armed !== null && control.armed.target === target && now < control.armed.until
+
 export async function selectDockerTarget($: EngineInterface, target: string) {
   disarmTimer()
   await update($, dockerControlState, control => ({
@@ -139,11 +153,13 @@ function disarmTimer() {
   armTimer = null
 }
 
-function startArmTimer($: EngineInterface, target: string) {
+function startArmTimer($: EngineInterface, target: string, until: number) {
   disarmTimer()
   armTimer = $.clock.after(CONFIRM_MS, () => {
     armTimer = null
-    void update($, dockerControlState, control => (control.armed === target ? { ...control, armed: null } : control))
+    void update($, dockerControlState, control =>
+      control.armed?.target === target && control.armed.until === until ? { ...control, armed: null } : control,
+    )
   })
 }
 
@@ -177,6 +193,8 @@ type PressDecision = 'skip' | 'arm' | 'run'
 // The check and the mark are one update, so a fast second or third press can never start the same
 // action twice. rm and rmi run only on a second press of the same target within CONFIRM_MS.
 export async function pressDockerAction($: EngineInterface, target: string, action: SidebarDockerAction) {
+  const now = await $.clock.now()
+  const until = now + CONFIRM_MS
   let decision = 'skip' as PressDecision
   await update($, dockerControlState, current => {
     if (current.pending.some(pending => pending.target === target)) {
@@ -184,16 +202,16 @@ export async function pressDockerAction($: EngineInterface, target: string, acti
 
       return current
     }
-    if (DESTRUCTIVE.has(action) && current.armed !== target) {
+    if (DESTRUCTIVE.has(action) && !isArmed(current, target, now)) {
       decision = 'arm'
 
-      return { ...current, armed: target }
+      return { ...current, armed: { target, until } }
     }
     decision = 'run'
 
     return { ...current, armed: null, pending: [...current.pending, { target, action }] }
   })
-  if (decision === 'arm') return startArmTimer($, target)
+  if (decision === 'arm') return startArmTimer($, target, until)
   if (decision === 'skip') return
   disarmTimer()
   try {

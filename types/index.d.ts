@@ -92,6 +92,7 @@ export type SidebarDocker = {
   reason: string | null
   containers: SidebarDockerContainer[]
   images: SidebarDockerImage[]
+  imagesReason: string | null
 }
 
 export type SidebarDockerTab = 'containers' | 'images'
@@ -100,7 +101,7 @@ export type SidebarDockerAction = 'restart' | 'stop' | 'start' | 'rm' | 'rmi'
 
 export type SidebarDockerControl = {
   selected: string | null
-  armed: string | null
+  armed: { target: string; until: number } | null
   pending: { target: string; action: SidebarDockerAction }[]
 }
 

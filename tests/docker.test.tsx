@@ -446,3 +446,66 @@ test('actions run with a one-minute timeout, never the five-second read timeout'
   expect(world.docker.actionTimeouts).toEqual([60_000])
   await ui.unmount()
 })
+
+test('a Delete whose expiry timer was lost, as a reload loses it, still expires after five seconds', SHOWN, async ($, on) => {
+  let now = NOW
+  on('clock.now', () => ({ value: now }))
+  on('clock.after', () => new Promise<never>(() => {}))
+  on('clock.every', () => new Promise<never>(() => {}))
+  const { world } = givenEngine(on, { usesMockClock: true })
+  world.store.dockerOpen = true
+  world.docker.containers = [dockerContainer(POSTGRES, 'api-postgres-1', 'exited')]
+  await $.session.start({ cwd: APP, surface: 'terminal', isInteractive: true })
+  world.isPaneOpen = true
+  const ui = await $.ui.mount({ ...PANE, surface: 'terminal' })
+  await ui.press({ key: `docker-container:${POSTGRES}` })
+  await ui.press({ key: 'docker-delete' })
+
+  now += 5_000
+  await ui.press({ key: 'docker-delete' })
+  expect(actionCalls(world.ran)).toEqual([])
+  expect(await actionLabels(ui)).toEqual(['Start', 'Confirm delete'])
+
+  now += 4_999
+  await ui.press({ key: 'docker-delete' })
+  expect(actionCalls(world.ran)).toEqual([['rm', '--', POSTGRES]])
+  await ui.unmount()
+})
+
+test('an armed Delete reads Delete again once its five seconds are over, even without its timer', SHOWN, async ($, on) => {
+  let now = NOW
+  on('clock.now', () => ({ value: now }))
+  on('clock.after', () => new Promise<never>(() => {}))
+  on('clock.every', () => new Promise<never>(() => {}))
+  const { world } = givenEngine(on, { usesMockClock: true })
+  world.store.dockerOpen = true
+  world.docker.containers = [dockerContainer(POSTGRES, 'api-postgres-1', 'exited')]
+  await $.session.start({ cwd: APP, surface: 'terminal', isInteractive: true })
+  world.isPaneOpen = true
+  const ui = await $.ui.mount({ ...PANE, surface: 'terminal' })
+  await ui.press({ key: `docker-container:${POSTGRES}` })
+  await ui.press({ key: 'docker-delete' })
+  expect(await actionLabels(ui)).toEqual(['Start', 'Confirm delete'])
+
+  now += 5_000
+  await $.tool.call({ tool: 'Bash', command: 'true' })
+  expect(await actionLabels(ui)).toEqual(['Start', 'Delete'])
+  await ui.unmount()
+})
+
+test('a failing docker images shows its reason in the Images tab and leaves the containers listed', SHOWN, async ($, on) => {
+  const { world } = await givenDocker($, on)
+  world.docker.imagesFailure = { exitCode: 1, stderr: 'Error response from daemon: image store unavailable\n' }
+  await $.tool.call({ tool: 'Bash', command: 'true' })
+  const ui = await $.ui.mount({ ...PANE, surface: 'terminal' })
+
+  expect(await listedContainers(ui)).toEqual(['api-mailpit-1', 'api-postgres-1'])
+  expect((await ui.find({ type: 'Text', text: /^Images$/ }))?.text).toBe('Images')
+
+  await ui.press({ key: 'docker-tab:images' })
+  expect((await ui.find({ type: 'Text', text: /^Error response from daemon: image sto/ }))?.text).toBe(
+    'Error response from daemon: image sto…',
+  )
+  expect(await ui.find({ type: 'Text', text: /^No images$/ })).toBeUndefined()
+  await ui.unmount()
+})
