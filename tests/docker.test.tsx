@@ -188,7 +188,7 @@ test('the three tabs stay on one row in a narrow pane, dropping their counts whe
   await givenDocker($, on)
   const tabsAt = async (bodyColumns: number) => {
     const ui = await $.ui.mount({ ...PANE, surface: 'terminal', props: { ...PANE.props, bodyColumns } })
-    const labels = (await ui.findAll({ type: 'Text', text: /^(Containers|Images|Volumes)/ })).map(found => found.text ?? '')
+    const labels = (await ui.findAll({ type: 'Text', text: /^(Containers|Images|Volumes|Ctrs|Imgs|Vols)/ })).map(found => found.text ?? '')
     const gap = Number((await ui.find({ key: 'docker-tabs' }))?.props.gap)
     await ui.unmount()
 
@@ -202,6 +202,24 @@ test('the three tabs stay on one row in a narrow pane, dropping their counts whe
   const narrow = await tabsAt(30)
   expect(narrow.labels).toEqual(['Containers', 'Images', 'Volumes'])
   expect(narrow.width).toBeLessThanOrEqual(30 - 2 - SECTION_INDENT)
+
+  for (const bodyColumns of [28, 26, 24]) {
+    const tight = await tabsAt(bodyColumns)
+    expect(tight.labels.map(label => label.split(' ')[0])).toEqual(['Ctrs', 'Imgs', 'Vols'])
+    expect(tight.width).toBeLessThanOrEqual(bodyColumns - 2 - SECTION_INDENT)
+  }
+})
+
+test('the selected volume is marked with › and the active color', SHOWN, async ($, on) => {
+  const { ui } = await givenVolumeSelected($, on, 'pgdata')
+
+  expect((await ui.findAll({ type: 'Text', text: /^(build_cache|mailpit_data|pgdata)$/ })).map(found => found.props.color)).toEqual([
+    undefined,
+    undefined,
+    'claude',
+  ])
+  expect((await ui.findAll({ type: 'Text', text: /^›$/ })).map(found => found.props.color)).toEqual(['claude'])
+  await ui.unmount()
 })
 
 test('the filter narrows the containers by name or image', SHOWN, async ($, on) => {
