@@ -38,8 +38,23 @@ const NO_VOLUMES: Pick<SidebarDocker, 'volumes' | 'volumesReason'> = { volumes: 
 const INITIAL_DOCKER: SidebarDocker = { status: 'unknown', reason: null, containers: [], images: [], imagesReason: null, ...NO_VOLUMES }
 const INITIAL_CONTROL: SidebarDockerControl = { selected: null, armed: null, pending: [] }
 
-const DESTRUCTIVE: ReadonlySet<SidebarDockerAction> = new Set(['rm', 'rmi'])
-const VERBS: Record<SidebarDockerAction, string> = { restart: 'restart', stop: 'stop', start: 'start', rm: 'delete', rmi: 'delete' }
+const DESTRUCTIVE: ReadonlySet<SidebarDockerAction> = new Set(['rm', 'rmi', 'volume-rm'])
+const VERBS: Record<SidebarDockerAction, string> = {
+  restart: 'restart',
+  stop: 'stop',
+  start: 'start',
+  rm: 'delete',
+  rmi: 'delete',
+  'volume-rm': 'delete',
+}
+const ACTION_ARGV: Record<SidebarDockerAction, readonly string[]> = {
+  restart: ['restart'],
+  stop: ['stop'],
+  start: ['start'],
+  rm: ['rm'],
+  rmi: ['rmi'],
+  'volume-rm': ['volume', 'rm'],
+}
 
 const dockerState = atom({ plugin: 'session-cockpit', key: 'docker' } as const, INITIAL_DOCKER)
 const dockerTabState = atom({ plugin: 'session-cockpit', key: 'dockerTab' } as const, 'containers' as SidebarDockerTab)
@@ -194,20 +209,23 @@ async function resolveTarget($: EngineInterface, target: string) {
   const docker = await readDocker($)
   const container = docker.containers.find(candidate => containerTarget(candidate) === target)
   const image = docker.images.find(candidate => imageTarget(candidate) === target)
+  const volume = docker.volumes.find(candidate => volumeTarget(candidate) === target)
   const resolved = container
     ? { argument: container.id, label: container.name }
     : image
       ? { argument: imageReference(image), label: imageLabel(image) }
-      : null
+      : volume
+        ? { argument: volume.name, label: volume.name }
+        : null
 
   return resolved === null || resolved.argument === '' || resolved.argument.startsWith('-') ? null : resolved
 }
 
 async function runAction($: EngineInterface, action: SidebarDockerAction, argument: string, label: string) {
-  const ran = await runDocker($, [action, '--', argument], ACTION_TIMEOUT_MS).catch((error: unknown) => ({ error }))
+  const ran = await runDocker($, [...ACTION_ARGV[action], '--', argument], ACTION_TIMEOUT_MS).catch((error: unknown) => ({ error }))
   const reason = 'error' in ran ? errorReason(ran.error) : ran.exitCode === 0 ? null : failureReason(ran.stderr, ran.exitCode)
   if (reason !== null) {
-    record(`docker ${action} ${argument} failed: ${reason}`)
+    record(`docker ${ACTION_ARGV[action].join(' ')} ${argument} failed: ${reason}`)
     await $.ui.toast(`Could not ${VERBS[action]} ${label}: ${reason}`)
   }
 
@@ -217,7 +235,7 @@ async function runAction($: EngineInterface, action: SidebarDockerAction, argume
 type PressDecision = 'skip' | 'arm' | 'run'
 
 // The check and the mark are one update, so a fast second or third press can never start the same
-// action twice. rm and rmi run only on a second press of the same target within CONFIRM_MS.
+// action twice. rm, rmi and volume rm run only on a second press of the same target within CONFIRM_MS.
 export async function pressDockerAction($: EngineInterface, target: string, action: SidebarDockerAction) {
   const now = await $.clock.now()
   const until = now + CONFIRM_MS

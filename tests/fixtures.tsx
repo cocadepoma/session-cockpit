@@ -658,11 +658,11 @@ export const registerSession = (
   files[`${SESSION_REGISTRY}/${entry.pid}.json`] = JSON.stringify(entry)
 }
 
-const DOCKER_ACTIONS = ['restart', 'stop', 'start', 'rm', 'rmi']
+const DOCKER_ACTIONS = ['restart', 'stop', 'start', 'rm', 'rmi', 'volume']
 
 const DOCKER_STATE_AFTER: Record<string, string> = { restart: 'running', start: 'running', stop: 'exited' }
 
-const applyDockerAction = (docker: { containers: string[]; images: string[] }, action: string, target: string) => {
+const applyDockerAction = (docker: { containers: string[]; images: string[]; volumes: string[] }, action: string, target: string) => {
   const state = DOCKER_STATE_AFTER[action]
   if (state !== undefined) {
     docker.containers = docker.containers.map(row => {
@@ -672,6 +672,7 @@ const applyDockerAction = (docker: { containers: string[]; images: string[] }, a
     })
   }
   if (action === 'rm') docker.containers = docker.containers.filter(row => row.split('\t')[0] !== target)
+  if (action === 'volume') docker.volumes = docker.volumes.filter(row => row.split('\t')[0] !== target)
   if (action === 'rmi') {
     docker.images = docker.images.filter(row => {
       const [id, repository, tag] = row.split('\t')

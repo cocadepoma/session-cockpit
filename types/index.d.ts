@@ -101,7 +101,7 @@ export type SidebarDocker = {
 
 export type SidebarDockerTab = 'containers' | 'images' | 'volumes'
 
-export type SidebarDockerAction = 'restart' | 'stop' | 'start' | 'rm' | 'rmi'
+export type SidebarDockerAction = 'restart' | 'stop' | 'start' | 'rm' | 'rmi' | 'volume-rm'
 
 export type SidebarDockerControl = {
   selected: string | null

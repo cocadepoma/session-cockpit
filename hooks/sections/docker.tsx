@@ -41,6 +41,7 @@ const PENDING_TEXT: Record<SidebarDockerAction, string> = {
   start: 'starting…',
   rm: 'deleting…',
   rmi: 'deleting…',
+  'volume-rm': 'deleting…',
 }
 
 type ActionButton = { key: string; label: string; action: SidebarDockerAction }
@@ -57,10 +58,12 @@ const STOPPED_ACTIONS: readonly ActionButton[] = [
 
 const IMAGE_ACTIONS: readonly ActionButton[] = [{ key: 'delete', label: 'Delete', action: 'rmi' }]
 
-const TABS: readonly { id: SidebarDockerTab; label: string }[] = [
-  { id: 'containers', label: 'Containers' },
-  { id: 'images', label: 'Images' },
-  { id: 'volumes', label: 'Volumes' },
+const VOLUME_ACTIONS: readonly ActionButton[] = [{ key: 'delete', label: 'Delete', action: 'volume-rm' }]
+
+const TABS: readonly { id: SidebarDockerTab; label: string; short: string }[] = [
+  { id: 'containers', label: 'Containers', short: 'Ctrs' },
+  { id: 'images', label: 'Images', short: 'Imgs' },
+  { id: 'volumes', label: 'Volumes', short: 'Vols' },
 ]
 const TAB_GAP = 2
 
@@ -93,20 +96,29 @@ export async function countDocker($: EngineInterface) {
 
 const tabsWidth = (labels: readonly string[], gap: number) => labels.join('').length + gap * (labels.length - 1)
 
-// The tabs are counted as one row, so they tighten, then drop their counts, rather than wrap.
+// The tabs are counted as one row, so rather than wrap they tighten, drop their counts, then
+// shorten their names.
 const fitTabs = (docker: SidebarDocker, width: number) => {
   const counts: Record<SidebarDockerTab, number | null> = {
     containers: docker.containers.length,
     images: docker.imagesReason === null ? docker.images.length : null,
     volumes: docker.volumesReason === null ? docker.volumes.length : null,
   }
-  const counted = TABS.map(({ id, label }) => (counts[id] === null ? label : `${label} ${counts[id]}`))
-  const plain = TABS.map(({ label }) => label)
-  for (const [labels, gap] of [[counted, TAB_GAP], [counted, 1], [plain, TAB_GAP]] as const) {
-    if (tabsWidth(labels, gap) <= width) return { labels, gap }
+  const withCount = (id: SidebarDockerTab, name: string) => (counts[id] === null ? name : `${name} ${counts[id]}`)
+  const shortPlain = TABS.map(({ short }) => short)
+  const candidates = [
+    TABS.map(({ id, label }) => withCount(id, label)),
+    TABS.map(({ label }) => label),
+    TABS.map(({ id, short }) => withCount(id, short)),
+    shortPlain,
+  ]
+  for (const labels of candidates) {
+    for (const gap of [TAB_GAP, 1]) {
+      if (tabsWidth(labels, gap) <= width) return { labels, gap }
+    }
   }
 
-  return { labels: plain, gap: 1 }
+  return { labels: shortPlain, gap: 1 }
 }
 
 function drawTabs($: EngineInterface, e: PaneInput, docker: SidebarDocker, tab: SidebarDockerTab) {
@@ -192,10 +204,11 @@ function drawImage($: EngineInterface, e: PaneInput, image: SidebarDockerImage, 
   return hasActionRow(control, target) ? [row, drawActions($, e, { target, actions: IMAGE_ACTIONS, control, now })] : [row]
 }
 
-function drawVolume($: EngineInterface, e: PaneInput, volume: SidebarDockerVolume, control: SidebarDockerControl) {
+function drawVolume($: EngineInterface, e: PaneInput, volume: SidebarDockerVolume, control: SidebarDockerControl, now: number) {
   const target = volumeTarget(volume)
+  const row = drawRow($, e, { target, label: volume.name, detail: volume.isInUse ? 'in use' : 'unused', control })
 
-  return [drawRow($, e, { target, label: volume.name, detail: volume.isInUse ? 'in use' : 'unused', control })]
+  return hasActionRow(control, target) ? [row, drawActions($, e, { target, actions: VOLUME_ACTIONS, control, now })] : [row]
 }
 
 type TabList = { total: number; start: number; shown: number; actionRows: number; rows: JSX.Element[]; hasItems: boolean; reason: string | null }
@@ -233,7 +246,7 @@ function drawTabList($: EngineInterface, e: PaneInput, docker: SidebarDocker, ta
     return tabWindow(source, offset, control)
   }
   if (tab === 'volumes') {
-    const draw = (volume: SidebarDockerVolume) => drawVolume($, e, volume, control)
+    const draw = (volume: SidebarDockerVolume) => drawVolume($, e, volume, control, now)
     const source = { matching: matchingVolumes(docker, filter), all: docker.volumes, reason: docker.volumesReason, targetOf: volumeTarget, draw }
 
     return tabWindow(source, offset, control)

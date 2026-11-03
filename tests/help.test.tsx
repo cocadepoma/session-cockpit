@@ -34,7 +34,7 @@ test('the Help section is folded by default and unfolds into the about line, eve
     'Esc: return focus, close the diff',
     'Filter box: type to narrow the list, Enter acts on the first match',
     '● Keep awake: pick 30m, 1h, 2h, 5h or ∞; press ● to stop',
-    'Docker: press a container or image for its actions; Delete needs a second press',
+    'Docker: press a container, image or volume for its actions; Delete needs a second press',
     'Settings: press a row to show or hide that part; Activity and Docker start hidden',
   ])
   expect(await text(/^Files: repository/)).toBe(
