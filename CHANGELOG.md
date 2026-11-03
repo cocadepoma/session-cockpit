@@ -15,7 +15,7 @@ All notable changes to this mod. The format follows [Keep a Changelog](https://k
 ### Changed
 
 - Each section's content is indented two columns under its title, so sections read as separate blocks. Rows are cut two columns sooner and the Context and Usage bars are two cells shorter, so nothing wraps.
-- One color, Claude orange, marks what is active or selected: the current model, session and conversation, the active Docker tab, and the selected Docker container or image, which is also marked `›`. Before, a selected row or the current session was only bold.
+- One color, Claude orange, marks what is active or selected: the current model, session and conversation, the active Docker tab, and the selected Docker container, image or volume, which is also marked `›`. Before, a selected row or the current session was only bold.
 - Keep awake is a section of its own, with a bold title and its row indented under it like Context and Usage; it does not fold. Off, the row reads `○ Off` beside the durations; on, the pill reads `● On · 1h left` (`● On · ∞` without a limit) in Claude orange instead of green.
 - Pressing a file in Files shows its diff inside the sidebar, in place of the sections, with a `Back` button (`b`), instead of opening a second tab. `Back` returns to the file's row. This avoids a diff opened behind the `Session` tab that never took focus.
 
