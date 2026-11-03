@@ -29,6 +29,7 @@ const ROWS = [
   ['showNotes', 'Notes'],
   ['showFiles', 'Files'],
   ['showMcp', 'MCP'],
+  ['showDocker', 'Docker'],
   ['showActivity', 'Activity'],
   ['showTodos', 'Todos'],
   ['showHelp', 'Help'],
@@ -128,10 +129,12 @@ test('a threshold outside 1 to 100 falls back to 70 and 85', { options: { contex
   expect(await contextColor($, on, 30)).toBe('success')
 })
 
-const statusesFor = (hidden: string[] = []) =>
-  ROWS.map(([name]) => (hidden.includes(name) || name === 'showActivity' ? ' hidden' : ' shown'))
+const OFF_BY_DEFAULT: readonly string[] = ['showDocker', 'showActivity']
 
-const SETTING_IDS = ['logo', 'keepAwake', 'context', 'usage', 'skills', 'sessions', 'conversations', 'notes', 'files', 'mcp', 'activity', 'todos', 'help']
+const statusesFor = (hidden: string[] = []) =>
+  ROWS.map(([name]) => (hidden.includes(name) || OFF_BY_DEFAULT.includes(name) ? ' hidden' : ' shown'))
+
+const SETTING_IDS = ['logo', 'keepAwake', 'context', 'usage', 'skills', 'sessions', 'conversations', 'notes', 'files', 'mcp', 'docker', 'activity', 'todos', 'help']
 
 type DrawnNode = { props?: { key?: string }; children?: unknown[] }
 
@@ -230,7 +233,7 @@ for (const [option, label] of ROWS) {
 
     await ui.press({ key: `setting:${SETTING_IDS[ROWS.findIndex(([name]) => name === option)]}` })
 
-    expect(world.config.sets).toEqual([{ key: `${SETTINGS_PLUGIN}.${option}`, value: option === 'showActivity' }])
+    expect(world.config.sets).toEqual([{ key: `${SETTINGS_PLUGIN}.${option}`, value: OFF_BY_DEFAULT.includes(option) }])
     expect(toasts).toEqual([])
     await ui.unmount()
   })

@@ -6,11 +6,11 @@ import { storedFlag } from './values'
 
 export const LIST_WINDOW_ROWS = 8
 
-export type ListId = 'skills' | 'sessions' | 'conversations' | 'notes' | 'files' | 'mcp'
+export type ListId = 'skills' | 'sessions' | 'conversations' | 'notes' | 'files' | 'mcp' | 'docker'
 
 export type SectionId = ListId | 'help' | 'settings'
 
-export const SECTION_IDS: readonly SectionId[] = ['skills', 'sessions', 'conversations', 'notes', 'files', 'mcp', 'help', 'settings']
+export const SECTION_IDS: readonly SectionId[] = ['skills', 'sessions', 'conversations', 'notes', 'files', 'mcp', 'docker', 'help', 'settings']
 
 const OPEN_BY_DEFAULT: ReadonlySet<SectionId> = new Set(['mcp', 'sessions'])
 

@@ -20,6 +20,7 @@ const SETTING_ROWS: readonly { id: ToggleableSection; label: string }[] = [
   { id: 'notes', label: 'Notes' },
   { id: 'files', label: 'Files' },
   { id: 'mcp', label: 'MCP' },
+  { id: 'docker', label: 'Docker' },
   { id: 'activity', label: 'Activity' },
   { id: 'todos', label: 'Todos' },
   { id: 'help', label: 'Help' },

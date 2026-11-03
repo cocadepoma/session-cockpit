@@ -52,10 +52,11 @@ The sidebar stays hidden in VS Code: in the Claude Code extension and in `claude
 | Notes | Saved notes | Filter; press to copy; `✕` deletes |
 | Files | Repository changes against `HEAD` and files Claude edited, grouped by repository and `Other`; the header shows the total `+added -removed` | Filter; press a file to show its diff in place of the sections, `Back` (or `b`) returns |
 | MCP | Connected MCP servers | Filter (when there are three or more) |
+| Docker | Off by default (turn it on with `Show Docker` or in Settings). Two tabs, `Containers N` and `Images N`: each container with its state (running ones first, `●` green while running) and `(running/total running)` in the header; each image reference (`repository:tag`, a dangling image by its ID) with its size. When docker cannot answer, the section says `Docker is not running`, `Docker CLI not found` or the first line docker wrote, instead of an empty list, and a failing `docker images` shows its reason in the Images tab; it reads docker only while it is open | Filter; press a tab to switch lists. Press a container for `Restart` and `Stop` (running) or `Start` and `Delete` (stopped), an image for `Delete`; press it again to hide them. `Delete` turns into `Confirm delete` and runs only on a second press within five seconds, a window a reload of the mod does not stretch; pressing another row, another action or a tab cancels it. While docker works, the row reads `restarting…`, `stopping…`, `starting…` or `deleting…`; when docker refuses, a toast says why and the list stays as docker reports it |
 | Activity | Off by default (turn it on with `Show Activity` or in Settings). The tool calls and subagents running now, each with its target and elapsed time (subagent calls nested under their row), and the last five finished ones with `✓` or `✗`; hidden while there is nothing to show; drawn below MCP; nothing is recorded while it is off | |
 | Todo | The session's todo list | |
 | Help | Commands and gestures | |
-| Settings | Every part you can hide (Logo, Keep awake, Context, Usage, Skills, Sessions, Conversations, Notes, Files, MCP, Activity, Todos, Help), each `shown` or `hidden`; folded by default, always last | Press a row to show or hide that part; the sidebar reloads with the new value |
+| Settings | Every part you can hide (Logo, Keep awake, Context, Usage, Skills, Sessions, Conversations, Notes, Files, MCP, Docker, Activity, Todos, Help), each `shown` or `hidden`; folded by default, always last | Press a row to show or hide that part; the sidebar reloads with the new value |
 
 Every list shows eight rows at a time: the mouse wheel scrolls the list under the pointer, and the sidebar anywhere else or when that list is at its end. In a filter box, Enter acts on the first match.
 
@@ -94,7 +95,8 @@ The options are in `/config`, under this plugin:
 | Option | Default | Effect |
 |---|---|---|
 | `Show Logo` | on | Off removes the logo |
-| `Show Activity` | off | On draws the Activity section below MCP |
+| `Show Docker` | off | On draws the Docker section below MCP (it needs the `docker` CLI) |
+| `Show Activity` | off | On draws the Activity section below MCP and Docker |
 | `Show <section>` (Keep awake, Context, Usage, Skills, Sessions, Conversations, Notes, Files, MCP, Todo, Help) | on | Off removes that section from the sidebar, and its list from the mouse wheel |
 | `Context warning percent` | 70 | The context bar turns yellow from here |
 | `Context critical percent` | 85 | The context bar turns red from here |
@@ -107,6 +109,7 @@ The header, Settings and footer are always shown. The Settings section writes th
 - For the full sidebar, Claude Code's fullscreen layout (`"tui": "fullscreen"`) and a terminal at least 110 columns wide; otherwise a compact view (see [Fullscreen](#fullscreen)).
 - macOS or Linux. Windows is not supported.
 - On the `PATH`: `git`, `diff`, `grep`, `ps`, `uname`, `rm`.
+- For the Docker section only: `docker` on the `PATH`, and a daemon it can reach (Docker Desktop or any other engine its current context points at).
 - Keep awake uses `caffeinate` on macOS (`-t` sets the duration). On Linux it picks by desktop: `kde-inhibit` (KDE), `gnome-session-inhibit` (GNOME, Budgie), `mate-session-inhibit` (MATE), else `systemd-inhibit`; a timed run holds with `timeout` (or `sleep` without a session pid), so the system ends it even if the mod restarts. KDE and MATE run the hold under `setpriv`, so it ends with the inhibitor. `∞` needs the session's pid; without it Keep awake is not available. Desktops where this was not verified show `unverified here` next to the switch; where nothing works, a message says so and the switch stays off.
 
 ## Data and privacy
@@ -128,6 +131,8 @@ The mod sends nothing anywhere. It reads and writes only on your machine:
 
 It also reads, without changing them, Claude Code's own conversation files (`~/.claude/projects/`) for titles, token counts and the prompt-cache tier, and its session registry (`~/.claude/sessions/`) for open sessions. These formats are internal to Claude Code: if a release changes them, the affected section shows less (no titles, no other sessions) instead of failing.
 
+Docker is read with `docker ps --all` and `docker images`, with explicit `--format` fields so `docker ps` never measures container sizes, and only while the Docker section is open: every five seconds while the sidebar is shown, after each Bash call, and once when a session starts with it open. It is changed only when you press an action: `docker restart`, `stop`, `start`, `rm` or `rmi`, with `--` before the container ID or image reference and never with `--force`, so docker refuses to delete a running container or an image in use. `rmi` removes the pressed `repository:tag` (docker deletes the image only when no other tag points at it), or a dangling image by its ID.
+
 Git is only read. Every `git` call runs with `--no-optional-locks` and `core.fsmonitor` off, so it never holds `.git/index.lock` while you run your own git commands and never starts the repository's fsmonitor command. Diffs run without external diff or textconv commands.
 
 ## Limits
@@ -137,7 +142,7 @@ Git is only read. Every `git` call runs with `--no-optional-locks` and `core.fsm
 - **Cost today and over 7 days** counts only sessions that run this version of the mod, uses your local date and a rolling seven days, and ignores what a session had already cost when it started. Removing an old file uses `rm -f`.
 - **Session agents** come from each session's own publication: a session that runs an older version of the mod, or none, shows no agents. Only pending, running and waiting agents are listed. Removing a file uses `rm -f`, the one host command this feature runs.
 - **Files** outside a git repository lists only the files Claude edited.
-- While the sidebar is open it polls every second (open sessions, notes, conversations) and every three seconds (git status, diffs). The polls pause while it is closed. The open-sessions poll re-reads only the registry and agents files that changed and checks the running PIDs with `ps` every five seconds. Idle, the sidebar does not redraw every second: Activity's clock ticks only while a tool or subagent runs.
+- While the sidebar is open it polls every second (open sessions, notes, conversations), every three seconds (git status, diffs) and, with the Docker section open, every five seconds (`docker ps`, `docker images`); a Bash call also refreshes git and an open Docker section. The polls pause while it is closed. The open-sessions poll re-reads only the registry and agents files that changed and checks the running PIDs with `ps` every five seconds. Idle, the sidebar does not redraw every second: Activity's clock ticks only while a tool or subagent runs.
 
 ## Development
 

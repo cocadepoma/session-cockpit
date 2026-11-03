@@ -14,6 +14,7 @@ export type ToggleableSection =
   | 'notes'
   | 'files'
   | 'mcp'
+  | 'docker'
   | 'activity'
   | 'todos'
   | 'help'

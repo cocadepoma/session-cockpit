@@ -20,11 +20,12 @@ type ListBlockOptions = {
   windowRows: number
   total: number
   hasNotice: boolean
+  toolbarRows?: number
 }
 
-export function listBlock({ id, element, isOpen, hasFilter, windowRows, total, hasNotice }: ListBlockOptions): Block {
+export function listBlock({ id, element, isOpen, hasFilter, windowRows, total, hasNotice, toolbarRows = 0 }: ListBlockOptions): Block {
   if (!isOpen) return { element, rows: HEADER_ROWS }
-  const first = HEADER_ROWS + (hasFilter ? FILTER_ROWS : 0)
+  const first = HEADER_ROWS + toolbarRows + (hasFilter ? FILTER_ROWS : 0)
   const scroller = total > LIST_WINDOW_ROWS ? SCROLLER_ROWS : 0
   const rows = first + windowRows + scroller + (hasNotice ? 1 : 0)
 

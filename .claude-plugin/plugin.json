@@ -69,6 +69,12 @@
       "description": "Show the MCP section in the sidebar",
       "default": true
     },
+    "showDocker": {
+      "type": "boolean",
+      "title": "Show Docker",
+      "description": "Show the Docker section in the sidebar (needs the docker CLI)",
+      "default": false
+    },
     "showActivity": {
       "type": "boolean",
       "title": "Show Activity",

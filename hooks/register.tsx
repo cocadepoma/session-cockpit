@@ -2,6 +2,7 @@ import type { Register } from 'claude-code'
 
 import type { SidebarTodo } from '../types'
 import { forgetAgents, pruneAgents, publishAgents } from './data/agents'
+import { refreshDockerIfOpen, startDockerWatch } from './data/docker'
 import { recordEdit } from './data/editedFiles'
 import { refreshGit } from './data/git'
 import { refreshMeta } from './data/meta'
@@ -36,6 +37,7 @@ import {
 export const register: Register = (on, options) => {
   const settings = readSettings(options)
   const isActivityOn = settings.isShown('activity')
+  const isDockerOn = settings.isShown('docker')
 
   on('session.start', async ($, e, next) => {
     record('session.start')
@@ -45,6 +47,10 @@ export const register: Register = (on, options) => {
     await forgetStoredLogo($)
     await refreshAll($, 'session.start')
     startWatchers($)
+    if (isDockerOn) {
+      startDockerWatch($)
+      await refreshDockerIfOpen($).catch(error => record(`docker refresh at start failed: ${describeError(error)}`))
+    }
     await pruneSnapshots($)
     await pruneAgents($)
     await pruneCost($)
@@ -198,7 +204,12 @@ export const register: Register = (on, options) => {
   on('tool.call', { tool: 'Bash' }, async ($, e, next) => {
     const ran = await next(e)
     if (await isSidebarShown($)) {
-      await refreshGit($).catch(error => record(`git refresh after Bash failed: ${describeError(error)}`))
+      await Promise.all([
+        refreshGit($).catch(error => record(`git refresh after Bash failed: ${describeError(error)}`)),
+        isDockerOn
+          ? refreshDockerIfOpen($).catch(error => record(`docker refresh after Bash failed: ${describeError(error)}`))
+          : undefined,
+      ])
     }
 
     return ran

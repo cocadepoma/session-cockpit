@@ -28,7 +28,8 @@ const HELP_GESTURES = [
   'Filter box: type to narrow the list, Enter acts on the first match',
   'Model line (▶): press to pick a model or effort while Claude is idle; the highlighted option is the current one',
   '● Keep awake: pick 30m, 1h, 2h, 5h or ∞; press ● to stop',
-  'Settings: press a row to show or hide that part; Activity starts hidden',
+  'Docker: press a container or image for its actions; Delete needs a second press',
+  'Settings: press a row to show or hide that part; Activity and Docker start hidden',
 ]
 const HELP_LIMIT =
   "Files: repository changes and Claude's edits, then Other (outside the repository); outside git, only Claude's edits."
