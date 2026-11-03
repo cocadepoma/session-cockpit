@@ -5,7 +5,7 @@ import { APP, PANE, SETTINGS_PLUGIN, givenEngine, givenTenFilesWithEmptyNotes, r
 
 const SECTIONS = [
   ['showLogo', /^█▀▀ ▀█▀/],
-  ['showKeepAwake', /^○ Keep awake$/],
+  ['showKeepAwake', /^Keep awake$/],
   ['showContext', /^Context$/],
   ['showUsage', /^Usage$/],
   ['showSkills', /^Skills$/],
