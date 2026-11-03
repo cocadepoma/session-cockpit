@@ -41,6 +41,7 @@ const PENDING_TEXT: Record<SidebarDockerAction, string> = {
   start: 'starting…',
   rm: 'deleting…',
   rmi: 'deleting…',
+  'volume-rm': 'deleting…',
 }
 
 type ActionButton = { key: string; label: string; action: SidebarDockerAction }
@@ -56,6 +57,8 @@ const STOPPED_ACTIONS: readonly ActionButton[] = [
 ]
 
 const IMAGE_ACTIONS: readonly ActionButton[] = [{ key: 'delete', label: 'Delete', action: 'rmi' }]
+
+const VOLUME_ACTIONS: readonly ActionButton[] = [{ key: 'delete', label: 'Delete', action: 'volume-rm' }]
 
 const TABS: readonly { id: SidebarDockerTab; label: string }[] = [
   { id: 'containers', label: 'Containers' },
@@ -192,10 +195,11 @@ function drawImage($: EngineInterface, e: PaneInput, image: SidebarDockerImage, 
   return hasActionRow(control, target) ? [row, drawActions($, e, { target, actions: IMAGE_ACTIONS, control, now })] : [row]
 }
 
-function drawVolume($: EngineInterface, e: PaneInput, volume: SidebarDockerVolume, control: SidebarDockerControl) {
+function drawVolume($: EngineInterface, e: PaneInput, volume: SidebarDockerVolume, control: SidebarDockerControl, now: number) {
   const target = volumeTarget(volume)
+  const row = drawRow($, e, { target, label: volume.name, detail: volume.isInUse ? 'in use' : 'unused', control })
 
-  return [drawRow($, e, { target, label: volume.name, detail: volume.isInUse ? 'in use' : 'unused', control })]
+  return hasActionRow(control, target) ? [row, drawActions($, e, { target, actions: VOLUME_ACTIONS, control, now })] : [row]
 }
 
 type TabList = { total: number; start: number; shown: number; actionRows: number; rows: JSX.Element[]; hasItems: boolean; reason: string | null }
@@ -233,7 +237,7 @@ function drawTabList($: EngineInterface, e: PaneInput, docker: SidebarDocker, ta
     return tabWindow(source, offset, control)
   }
   if (tab === 'volumes') {
-    const draw = (volume: SidebarDockerVolume) => drawVolume($, e, volume, control)
+    const draw = (volume: SidebarDockerVolume) => drawVolume($, e, volume, control, now)
     const source = { matching: matchingVolumes(docker, filter), all: docker.volumes, reason: docker.volumesReason, targetOf: volumeTarget, draw }
 
     return tabWindow(source, offset, control)

@@ -661,6 +661,81 @@ test('an armed Delete reads Delete again once its five seconds are over, even wi
   await ui.unmount()
 })
 
+const givenVolumeSelected = async ($: Parameters<TestBody>[0], on: On, volume: string) => {
+  const engine = await givenDocker($, on, { usesMockClock: true })
+  const ui = await $.ui.mount({ ...PANE, surface: 'terminal' })
+  await ui.press({ key: 'docker-tab:volumes' })
+  await ui.press({ key: `docker-volume:${volume}` })
+
+  return { ...engine, ui }
+}
+
+test('pressing a volume offers Delete, and a second press hides it', SHOWN, async ($, on) => {
+  const { ui } = await givenVolumeSelected($, on, 'build_cache')
+  expect(await actionLabels(ui)).toEqual(['Delete'])
+  expect((await ui.find({ type: 'Text', text: /^Delete$/ }))?.props.color).toBe('suggestion')
+
+  await ui.press({ key: 'docker-volume:build_cache' })
+  expect(await actionLabels(ui)).toEqual([])
+  await ui.unmount()
+})
+
+test('Delete removes a volume with docker volume rm, never forced, only on a second press', SHOWN, async ($, on) => {
+  const { world, ui } = await givenVolumeSelected($, on, 'build_cache')
+
+  await ui.press({ key: 'docker-delete' })
+  expect(actionCalls(world.ran)).toEqual([])
+  expect(await actionLabels(ui)).toEqual(['Confirm delete'])
+  expect((await ui.find({ type: 'Text', text: /^Confirm delete$/ }))?.props.color).toBe('error')
+
+  await ui.press({ key: 'docker-delete' })
+  expect(actionCalls(world.ran)).toEqual([['volume', 'rm', '--', 'build_cache']])
+  expect(await listedVolumes(ui)).toEqual(['mailpit_data', 'pgdata'])
+  expect(await actionLabels(ui)).toEqual([])
+  await ui.unmount()
+})
+
+test('a volume Delete left unconfirmed for five seconds goes back to Delete and the next press asks again', SHOWN, async ($, on) => {
+  const { world, clock, ui } = await givenVolumeSelected($, on, 'build_cache')
+  await ui.press({ key: 'docker-delete' })
+
+  await clock?.advance(5_000)
+  expect(await actionLabels(ui)).toEqual(['Delete'])
+
+  await ui.press({ key: 'docker-delete' })
+  expect(actionCalls(world.ran)).toEqual([])
+  expect(await actionLabels(ui)).toEqual(['Confirm delete'])
+  await ui.unmount()
+})
+
+test('a volume docker refuses to delete shows docker\'s reason in a toast and stays listed', SHOWN, async ($, on) => {
+  const { world, toasts, ui } = await givenVolumeSelected($, on, 'pgdata')
+  world.docker.actionFailure = { exitCode: 1, stderr: 'Error response from daemon: remove pgdata: volume is in use - [1622725f7f74]\n' }
+
+  await ui.press({ key: 'docker-delete' })
+  await ui.press({ key: 'docker-delete' })
+
+  expect(toasts).toEqual(['Could not delete pgdata: Error response from daemon: remove pgdata: volume is in use - [1622725f7f74]'])
+  expect(await listedVolumes(ui)).toEqual(['build_cache', 'mailpit_data', 'pgdata'])
+  expect(await actionLabels(ui)).toEqual(['Delete'])
+  await ui.unmount()
+})
+
+test('while docker deletes a volume its row reads deleting… and offers nothing to press', SHOWN, async ($, on) => {
+  const { world, ui } = await givenVolumeSelected($, on, 'build_cache')
+  await ui.press({ key: 'docker-delete' })
+  const release = holdDocker(world.docker)
+
+  const pressed = ui.press({ key: 'docker-delete' })
+  expect((await ui.find({ type: 'Text', text: /^deleting…$/ }))?.props.color).toBe('warning')
+  expect(await actionLabels(ui)).toEqual([])
+
+  release()
+  await pressed
+  expect(await listedVolumes(ui)).toEqual(['mailpit_data', 'pgdata'])
+  await ui.unmount()
+})
+
 test('a failing docker images shows its reason in the Images tab and leaves the containers listed', SHOWN, async ($, on) => {
   const { world } = await givenDocker($, on)
   world.docker.imagesFailure = { exitCode: 1, stderr: 'Error response from daemon: image store unavailable\n' }
