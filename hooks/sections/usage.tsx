@@ -8,7 +8,7 @@ import { currentTranscriptPath } from '../lib/paths'
 import { PROCESS_TIMEOUT_MS } from '../lib/process'
 import { formatAgo, formatRemaining, formatTokens, formatUsd, truncate } from '../lib/text'
 import type { Thresholds } from '../lib/settings'
-import { drawBar, levelColor } from '../lib/view'
+import { SECTION_INDENT, drawBar, levelColor } from '../lib/view'
 import type { PaneInput } from '../lib/view'
 import { drawContextDetails } from './contextDetails'
 import { readCostTotals } from './cost'
@@ -188,28 +188,30 @@ export async function drawContext($: EngineInterface, e: PaneInput, thresholds: 
   const element = (
     <Box flexDirection="column">
       <Text bold>Context</Text>
-      {context.percent === null ? (
-        <Text color="inactive">No usage yet</Text>
-      ) : (
-        <Box flexDirection="row" gap={1}>
-          {drawBar($, e, context.percent, levelColor(context.percent, thresholds))}
-          <Text color={levelColor(context.percent, thresholds)}>{`${context.isEstimate ? '~' : ''}${context.percent}%`}</Text>
-        </Box>
-      )}
-      {context.tokens !== null && (
-        <Text color="inactive">
-          {`${context.isEstimate ? '~' : ''}${formatTokens(context.tokens)}${context.window === null ? '' : ` / ${formatTokens(context.window)}`} tokens`}
-        </Text>
-      )}
-      {context.usd !== null && <Text color="inactive">{`${formatUsd(context.usd)} spent`}</Text>}
-      {details.element}
+      <Box key="context-body" flexDirection="column" paddingLeft={SECTION_INDENT}>
+        {context.percent === null ? (
+          <Text color="inactive">No usage yet</Text>
+        ) : (
+          <Box flexDirection="row" gap={1}>
+            {drawBar($, e, context.percent, levelColor(context.percent, thresholds), 0, SECTION_INDENT)}
+            <Text color={levelColor(context.percent, thresholds)}>{`${context.isEstimate ? '~' : ''}${context.percent}%`}</Text>
+          </Box>
+        )}
+        {context.tokens !== null && (
+          <Text color="inactive">
+            {`${context.isEstimate ? '~' : ''}${formatTokens(context.tokens)}${context.window === null ? '' : ` / ${formatTokens(context.window)}`} tokens`}
+          </Text>
+        )}
+        {context.usd !== null && <Text color="inactive">{`${formatUsd(context.usd)} spent`}</Text>}
+        {details.element}
+      </Box>
     </Box>
   )
 
   return { element, rows }
 }
 
-function drawLimitRow($: EngineInterface, e: PaneInput, limit: SidebarRateLimit, checkedAt: number) {
+function drawLimitRow($: EngineInterface, e: PaneInput, limit: SidebarRateLimit, checkedAt: number, indent: number) {
   const { Box, Text } = $.ui.resolve(e)
   const remaining = formatRemaining(limit.resetsAt, checkedAt)
   const projected = projectedPercent(limit, checkedAt)
@@ -223,6 +225,7 @@ function drawLimitRow($: EngineInterface, e: PaneInput, limit: SidebarRateLimit,
         limit.percentUsed,
         RATE_LIMIT_COLORS[limit.kind] ?? RATE_LIMIT_FALLBACK_COLOR,
         projected === null ? 0 : PACE_MARK_COLUMNS,
+        indent,
       )}
       <Text color={levelColor(limit.percentUsed)}>{`${Math.round(limit.percentUsed)}%`}</Text>
       {remaining !== null && <Text color="inactive">{remaining}</Text>}
@@ -245,12 +248,14 @@ export async function drawLimits($: EngineInterface, e: PaneInput): Promise<Bloc
           <Text color="inactive">{` · ${formatAgo(limits.readAt, limits.checkedAt)} ago`}</Text>
         )}
       </Box>
-      {cost.week > 0 && (
-        <Box key="cost-totals">
-          <Text color="inactive">{`today ${formatUsd(cost.today)} · 7d ${formatUsd(cost.week)}`}</Text>
-        </Box>
-      )}
-      {limits.items.map(limit => drawLimitRow($, e, limit, limits.checkedAt))}
+      <Box key="usage-body" flexDirection="column" paddingLeft={SECTION_INDENT}>
+        {cost.week > 0 && (
+          <Box key="cost-totals">
+            <Text color="inactive">{`today ${formatUsd(cost.today)} · 7d ${formatUsd(cost.week)}`}</Text>
+          </Box>
+        )}
+        {limits.items.map(limit => drawLimitRow($, e, limit, limits.checkedAt, SECTION_INDENT))}
+      </Box>
     </Box>
   )
 
@@ -281,5 +286,5 @@ export async function drawLimitLines($: EngineInterface, e: PaneInput) {
   const limits = await read($, limitsState).then(shown(limitsState))
   if (limits.items.length === 0) return null
 
-  return <Box flexDirection="column">{limits.items.map(limit => drawLimitRow($, e, limit, limits.checkedAt))}</Box>
+  return <Box flexDirection="column">{limits.items.map(limit => drawLimitRow($, e, limit, limits.checkedAt, 0))}</Box>
 }

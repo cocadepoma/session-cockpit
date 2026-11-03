@@ -22,6 +22,7 @@ test('the sessions section lists the open sessions, this one first, working in o
   expect(heading?.text).toBe('Sidebar for Claude Code')
   expect(rows.map(found => found.text)).toEqual(['Sidebar for Claude Code', 'lib · lib-1', 'app-2'])
   expect(rows.map(found => found.props.bold)).toEqual([true, false, false])
+  expect(rows.map(found => found.props.color)).toEqual(['claude', undefined, undefined])
 
   const labels = await ui.findAll({ type: 'Text', text: /^(working|done)$/ })
   expect(labels.map(found => [found.text, found.props.color])).toEqual([

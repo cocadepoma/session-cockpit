@@ -4,7 +4,7 @@ import { readSectionOpen } from '../lib/lists'
 import { optionOf } from '../lib/settings'
 import type { Settings, ToggleableSection } from '../lib/settings'
 import { describeError, record } from '../lib/trace'
-import { drawFold } from '../lib/view'
+import { SECTION_INDENT, drawFold } from '../lib/view'
 import type { PaneInput } from '../lib/view'
 
 const PLUGIN = 'session-cockpit'
@@ -50,7 +50,7 @@ export async function drawSettings($: EngineInterface, e: PaneInput, settings: S
     <Box flexDirection="column">
       {drawFold($, e, { id: 'settings', title: 'Settings', isOpen })}
       {isOpen && (
-        <Box flexDirection="column">
+        <Box key="settings-body" flexDirection="column" paddingLeft={SECTION_INDENT}>
           {SETTING_ROWS.map(({ id, label }) => {
             const isShown = settings.isShown(id)
 

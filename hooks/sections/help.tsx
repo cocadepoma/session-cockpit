@@ -2,7 +2,7 @@ import type { EngineInterface } from 'claude-code'
 
 import { DEBUG_ARGUMENT, LOGO_COMMAND, LOGO_FILE_ARGUMENT, NOTE_COMMAND, OWN_COMMAND } from '../lib/commands'
 import { readSectionOpen } from '../lib/lists'
-import { drawFold } from '../lib/view'
+import { SECTION_INDENT, drawFold } from '../lib/view'
 import type { PaneInput } from '../lib/view'
 
 const HELP_ABOUT =
@@ -28,7 +28,7 @@ const HELP_GESTURES = [
   'Filter box: type to narrow the list, Enter acts on the first match',
   'Model line (▶): press to pick a model or effort while Claude is idle; the highlighted option is the current one',
   '● Keep awake: pick 30m, 1h, 2h, 5h or ∞; press ● to stop',
-  'Docker: press a container or image for its actions; Delete needs a second press',
+  'Docker: press a container, image or volume for its actions; Delete needs a second press',
   'Settings: press a row to show or hide that part; Activity and Docker start hidden',
 ]
 const HELP_LIMIT =
@@ -44,7 +44,7 @@ export async function drawHelp($: EngineInterface, e: PaneInput) {
     <Box flexDirection="column">
       {drawFold($, e, { id: 'help', title: 'Help', isOpen })}
       {isOpen && (
-        <Box flexDirection="column">
+        <Box key="help-body" flexDirection="column" paddingLeft={SECTION_INDENT}>
           <Text color="inactive" wrap="truncate-end">
             {HELP_ABOUT}
           </Text>

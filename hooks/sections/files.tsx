@@ -16,7 +16,7 @@ import { baseName, homePath, isInside, relativePath } from '../lib/paths'
 import { truncate, truncateStart } from '../lib/text'
 import { listBlock } from '../lib/layout'
 import type { Block } from '../lib/layout'
-import { drawFilter, drawFold, drawListScroller, rowWidth } from '../lib/view'
+import { SECTION_INDENT, drawFilter, drawFold, drawListScroller, rowWidth } from '../lib/view'
 import type { PaneInput } from '../lib/view'
 import { openDiff } from './diff'
 
@@ -112,7 +112,7 @@ export async function drawFiles($: EngineInterface, e: PaneInput): Promise<Block
               ],
       })}
       {isOpen && (
-        <Box flexDirection="column">
+        <Box key="files-body" flexDirection="column" paddingLeft={SECTION_INDENT}>
           {filterRow}
           {visible.flatMap((file, index) => {
             const counts = `+${file.added} -${file.removed}`

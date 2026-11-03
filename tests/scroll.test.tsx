@@ -94,17 +94,17 @@ test('a scroll no open list can move is passed on to the engine', async ($, on) 
 })
 
 // Pane rows of the sidebar below, one row per line, a blank row between sections:
-// logo 0-2, header 4-6 (title, model, git), keep awake 8, context 10-14, usage 16-18, skills 20 (folded),
-// Conversations 22 (header), 23 (filter), 24-31 (window), 32 (scroller), Notes 34 (folded),
-// Files 36 (header), 37 (filter), 38-45 (window), 46 (scroller), MCP 48 (header), 49 (filter), 50-52 (three servers).
-const CONVERSATIONS_FIRST = 24
-const CONVERSATIONS_LAST = 31
-const FILES_FIRST = 38
-const FILES_LAST = 45
-const FILES_FILTER = 37
-const FILES_SCROLLER = 46
-const USAGE_ROW = 17
-const MCP_FIRST = 50
+// logo 0-2, header 4-6 (title, model, git), keep awake 8-9 (title, body), context 11-15, usage 17-19, skills 21 (folded),
+// Conversations 23 (header), 24 (filter), 25-32 (window), 33 (scroller), Notes 35 (folded),
+// Files 37 (header), 38 (filter), 39-46 (window), 47 (scroller), MCP 49 (header), 50 (filter), 51-53 (three servers).
+const CONVERSATIONS_FIRST = 25
+const CONVERSATIONS_LAST = 32
+const FILES_FIRST = 39
+const FILES_LAST = 46
+const FILES_FILTER = 38
+const FILES_SCROLLER = 47
+const USAGE_ROW = 18
+const MCP_FIRST = 51
 
 const givenFilesAndConversations = async ($: Parameters<TestBody>[0], on: On, pane = paneAt(0)) => {
   const { world } = givenEngine(on, { transcripts: [transcriptEntry('current.jsonl', NOW), ...hourlyTranscripts] })
@@ -185,7 +185,7 @@ test('a wheel tick over a row that is not a list row moves the pane and no list'
   const reached = givenPaneRecorder(on)
   const { ui, files, conversations } = await givenFilesAndConversations($, on)
 
-  for (const row of [0, 5, 9, USAGE_ROW, 22, 23, 33, MCP_FIRST, 60]) await $.ui.scroll(pointerTick(1, row))
+  for (const row of [0, 5, 10, USAGE_ROW, 23, 24, 34, MCP_FIRST, 60]) await $.ui.scroll(pointerTick(1, row))
 
   expect(reached).toHaveLength(9)
   expect(await files()).toBe('1–8 of 10')
@@ -282,14 +282,14 @@ test('a session with agents takes one row for itself and one for each agent in t
 
   const ui = await $.ui.mount(paneAt(0))
   const range = async () => (await ui.find({ type: 'Text', text: /of 10$/ }))?.text
-  // Sessions 22 (header), 23 (filter), 24-26 (this session and its two agents), 27 (the other session); Conversations 29 (folded),
-  // Notes 31 (folded), Files 33 (header), 34 (filter), 35-42 (window).
-  await $.ui.scroll(pointerTick(1, 35))
+  // Sessions 23 (header), 24 (filter), 25-27 (this session and its two agents), 28 (the other session); Conversations 30 (folded),
+  // Notes 32 (folded), Files 34 (header), 35 (filter), 36-43 (window).
+  await $.ui.scroll(pointerTick(1, 36))
   expect(await range()).toBe('2–9 of 10')
-  await $.ui.scroll(pointerTick(-1, 42))
+  await $.ui.scroll(pointerTick(-1, 43))
   expect(await range()).toBe('1–8 of 10')
   expect(reached).toEqual([])
-  await $.ui.scroll(pointerTick(1, 43))
+  await $.ui.scroll(pointerTick(1, 44))
   expect(reached).toEqual([1])
   await ui.unmount()
 })
@@ -376,7 +376,7 @@ test('a long waiting text of a session is cut to one line and the Files window b
 
   expect(waiting).toMatch(/…$/)
   expect(waiting.length).toBeLessThanOrEqual(24)
-  await $.ui.scroll(pointerTick(1, 33))
+  await $.ui.scroll(pointerTick(1, 34))
   expect((await ui.find({ type: 'Text', text: /of 10$/ }))?.text).toBe('2–9 of 10')
   expect(reached).toEqual([])
   await ui.unmount()

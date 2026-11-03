@@ -96,7 +96,7 @@ for (const { name, options, expected } of keepAwakeCases) {
 
     expect(world.spawn.started).toEqual(expected)
     expect(toasts).toEqual(['Keep awake is not available here'])
-    expect(await text(/^○ Keep awake$/)).toBe('○ Keep awake')
+    expect(await text(/^○ Off$/)).toBe('○ Off')
   })
 }
 
@@ -150,10 +150,116 @@ test(`keep awake on MATE holds with the timeout under setpriv`, async ($, on) =>
   ])
 })
 
+// The PANE fixture is 40 columns wide; the pane pads one column on each side and the section body
+// indents two more.
+const SECTION_ROW_WIDTH = 40 - 2 - 2
+
+type DrawnNode = { props?: Record<string, unknown>; children?: unknown[] }
+
+const childNodes = (node: DrawnNode | undefined) =>
+  (node?.children ?? []).filter((child): child is DrawnNode => typeof child === 'object' && child !== null)
+
+const findDrawn = (node: DrawnNode | undefined, key: string): DrawnNode | undefined => {
+  if (node?.props?.key === key) return node
+  for (const child of childNodes(node)) {
+    const found = findDrawn(child, key)
+    if (found !== undefined) return found
+  }
+
+  return undefined
+}
+
+const drawnColors = (node: DrawnNode | undefined): unknown[] =>
+  [node?.props?.color, node?.props?.backgroundColor, ...childNodes(node).flatMap(drawnColors)].filter(color => color !== undefined)
+
+// The columns a drawn row takes: its text plus the horizontal margins of its boxes.
+const drawnColumns = (node: DrawnNode): number => {
+  const marginX = node.props?.marginX
+  const margins = typeof marginX === 'number' ? 2 * marginX : 0
+
+  return (node.children ?? []).reduce<number>(
+    (columns, child) => columns + (typeof child === 'string' ? [...child].length : typeof child === 'object' && child !== null ? drawnColumns(child) : 0),
+    margins,
+  )
+}
+
+test('keep awake is a section of its own: a bold title over an indented body, off and on', async ($, on) => {
+  const { world, ui, press, stop } = await givenKeepAwake($, on, { platform: 'Darwin' })
+  world.spawn.plans.caffeinate = 'run'
+
+  expect((await ui.find({ type: 'Text', text: /^Keep awake$/ }))?.props.bold).toBe(true)
+  expect((await ui.find({ key: 'keep-awake-body' }))?.props.paddingLeft).toBe(2)
+
+  await press()
+  expect((await ui.find({ type: 'Text', text: /^Keep awake$/ }))?.props.bold).toBe(true)
+  expect((await ui.find({ key: 'keep-awake-body' }))?.props.paddingLeft).toBe(2)
+  await stop()
+})
+
+test('keep awake off says Off in the secondary color and offers the presets in the pressable color', async ($, on) => {
+  const { ui } = await givenKeepAwake($, on, { platform: 'Darwin' })
+
+  expect((await ui.find({ type: 'Text', text: /^○ Off$/ }))?.props.color).toBe('inactive')
+  for (const label of ['30m', '1h', '2h', '5h', '∞']) {
+    expect((await ui.find({ type: 'Text', text: new RegExp(`^${label}$`) }))?.props.color).toBe('suggestion')
+  }
+})
+
+test('keep awake on says On and the time left in the active color, ∞ for an unlimited run', async ($, on) => {
+  const { world, ui, press, pressKey, stop } = await givenKeepAwake($, on, { platform: 'Darwin' })
+  world.spawn.plans.caffeinate = 'run'
+  const pill = { color: 'inverseText', backgroundColor: 'claude', bold: true }
+
+  await pressKey('keep-awake-5h')
+  expect((await ui.find({ type: 'Text', text: /^ ● On · 5h left $/ }))?.props).toMatchObject(pill)
+  await stop()
+
+  await press()
+  expect((await ui.find({ type: 'Text', text: /^ ● On · ∞ $/ }))?.props).toMatchObject(pill)
+  await stop()
+})
+
+test('keep awake draws no success green, off or on', async ($, on) => {
+  const { world, ui, press, stop } = await givenKeepAwake($, on, { desktop: 'XFCE' })
+  world.spawn.plans['systemd-inhibit'] = 'run'
+  const colors = async () => drawnColors(findDrawn((await ui.drawn()) as DrawnNode, 'keep-awake-body'))
+
+  const off = await colors()
+  expect(off).toContain('inactive')
+  expect(off).toContain('suggestion')
+  expect(off).not.toContain('success')
+
+  await press()
+  const on_ = await colors()
+  expect(on_).toContain('claude')
+  expect(on_).toContain('warning')
+  expect(on_).not.toContain('success')
+  await stop()
+})
+
+test('keep awake rows fit the indented body of a forty-column pane, the unverified note cut first', async ($, on) => {
+  const { world, ui, text, pressKey, stop, clock } = await givenKeepAwake($, on, { desktop: 'XFCE' })
+  world.spawn.plans['systemd-inhibit'] = 'run'
+  const rowColumns = async () => childNodes(findDrawn((await ui.drawn()) as DrawnNode, 'keep-awake-body')).map(drawnColumns)
+
+  const off = await rowColumns()
+  expect(off).toHaveLength(1)
+  expect(off[0]).toBeLessThanOrEqual(SECTION_ROW_WIDTH)
+
+  await pressKey('keep-awake-5h')
+  await clock.advance(65_000)
+  expect(await text(/^ ● On · 4h 59m left $/)).toBe(' ● On · 4h 59m left ')
+  expect(await text(/unverified/)).toBe(' · unverified')
+  const onRows = await rowColumns()
+  expect(onRows).toHaveLength(1)
+  expect(onRows[0]).toBeLessThanOrEqual(SECTION_ROW_WIDTH)
+  await stop()
+})
+
 test('keep awake off shows the label and the five presets and no pill', async ($, on) => {
   const { ui, text } = await givenKeepAwake($, on, { platform: 'Darwin' })
 
-  expect((await ui.find({ type: 'Text', text: /^○ Keep awake$/ }))?.props).toMatchObject({ color: 'suggestion', bold: true })
+  expect((await ui.find({ type: 'Text', text: /^○ Off$/ }))?.props).toMatchObject({ color: 'inactive' })
   for (const label of ['30m', '1h', '2h', '5h', '∞']) expect(await text(new RegExp(`^${label}$`))).toBe(label)
   expect(await ui.find({ key: 'keep-awake-toggle' })).toBeUndefined()
   for (const key of ['keep-awake-30m', 'keep-awake-1h', 'keep-awake-2h', 'keep-awake-5h', 'keep-awake-forever']) {
@@ -167,24 +273,24 @@ test('keep awake on shows the pill with the duration and hides the presets', asy
 
   await pressKey('keep-awake-5h')
 
-  expect(await text(/^ ● Keep awake · 5h $/)).toBe(' ● Keep awake · 5h ')
+  expect(await text(/^ ● On · 5h left $/)).toBe(' ● On · 5h left ')
   expect(await ui.find({ key: 'keep-awake-30m' })).toBeUndefined()
   expect(await ui.find({ key: 'keep-awake-forever' })).toBeUndefined()
-  expect(await text(/^○ Keep awake$/)).toBeUndefined()
+  expect(await text(/^○ Off$/)).toBeUndefined()
   await stop()
   expect(world.spawn.killed).toEqual(['caffeinate'])
-  expect(await text(/^○ Keep awake$/)).toBe('○ Keep awake')
+  expect(await text(/^○ Off$/)).toBe('○ Off')
 })
 
 test('keep awake 30m shows 30m and forever shows the infinity mark', async ($, on) => {
   const timed = await givenKeepAwake($, on, { platform: 'Darwin' })
   timed.world.spawn.plans.caffeinate = 'run'
   await timed.pressKey('keep-awake-30m')
-  expect(await timed.text(/^ ● Keep awake · 30m $/)).toBe(' ● Keep awake · 30m ')
+  expect(await timed.text(/^ ● On · 30m left $/)).toBe(' ● On · 30m left ')
   await timed.stop()
 
   await timed.press()
-  expect(await timed.text(/^ ● Keep awake · ∞ $/)).toBe(' ● Keep awake · ∞ ')
+  expect(await timed.text(/^ ● On · ∞ $/)).toBe(' ● On · ∞ ')
   await timed.stop()
 })
 
@@ -192,10 +298,10 @@ test('keep awake countdown moves with the clock', async ($, on) => {
   const { world, text, pressKey, stop, clock } = await givenKeepAwake($, on, { platform: 'Darwin' })
   world.spawn.plans.caffeinate = 'run'
   await pressKey('keep-awake-30m')
-  expect(await text(/^ ● Keep awake · /)).toBe(' ● Keep awake · 30m ')
+  expect(await text(/^ ● On · /)).toBe(' ● On · 30m left ')
 
   await clock.advance(65_000)
-  expect(await text(/^ ● Keep awake · /)).toBe(' ● Keep awake · 29m ')
+  expect(await text(/^ ● On · /)).toBe(' ● On · 29m left ')
   await stop()
 })
 
@@ -237,7 +343,7 @@ test('keep awake countdown shows hours and minutes for a long run', async ($, on
 
   await clock.advance(65_000)
 
-  expect(await text(/^ ● Keep awake · /)).toBe(' ● Keep awake · 4h 59m ')
+  expect(await text(/^ ● On · /)).toBe(' ● On · 4h 59m left ')
   await stop()
 })
 
@@ -250,7 +356,7 @@ test('keep awake keeps the old toast when a timed child exits before its deadlin
   world.spawn.endings.caffeinate?.()
   await clock.advance(1_000)
 
-  expect(await text(/^○ Keep awake$/)).toBe('○ Keep awake')
+  expect(await text(/^○ Off$/)).toBe('○ Off')
   expect(toasts).toEqual(['Keep awake stopped: caffeinate exited'])
 })
 
@@ -261,7 +367,7 @@ test('keep awake falls through to the next candidate when one cannot start', asy
   await press()
 
   expect(world.spawn.started.map(argv => argv[0])).toEqual(['gnome-session-inhibit', 'systemd-inhibit'])
-  expect(await text(/^ ● Keep awake · ∞ $/)).toBe(' ● Keep awake · ∞ ')
+  expect(await text(/^ ● On · ∞ $/)).toBe(' ● On · ∞ ')
   await stop()
 })
 
@@ -273,7 +379,7 @@ test('keep awake falls through to the next candidate when one exits within the g
   await press()
 
   expect(world.spawn.started.map(argv => argv[0])).toEqual(['kde-inhibit', 'systemd-inhibit'])
-  expect(await text(/^ ● Keep awake · ∞ $/)).toBe(' ● Keep awake · ∞ ')
+  expect(await text(/^ ● On · ∞ $/)).toBe(' ● On · ∞ ')
   expect(await text(/unverified/)).toBeUndefined()
   await stop()
 })
@@ -282,11 +388,11 @@ test('keep awake draws the switch off, on and unverified, and pressing it starts
   const { world, press, text, ui, stop } = await givenKeepAwake($, on, { desktop: 'XFCE' })
   world.spawn.plans['systemd-inhibit'] = 'run'
 
-  expect((await ui.find({ type: 'Text', text: /^○ Keep awake$/ }))?.props).toMatchObject({ color: 'suggestion', bold: true })
+  expect((await ui.find({ type: 'Text', text: /^○ Off$/ }))?.props).toMatchObject({ color: 'inactive' })
   expect(await text(/unverified/)).toBeUndefined()
 
   await press()
-  expect((await ui.find({ type: 'Text', text: /^ ● Keep awake · ∞ $/ }))?.props).toMatchObject({ color: 'inverseText', backgroundColor: 'success' })
+  expect((await ui.find({ type: 'Text', text: /^ ● On · ∞ $/ }))?.props).toMatchObject({ color: 'inverseText', backgroundColor: 'claude' })
   expect((await ui.find({ type: 'Text', text: /unverified/ }))?.props.color).toBe('warning')
   expect(await text(/unverified/)).toBe(' · unverified here')
   expect(world.spawn.started).toEqual([[...SYSTEMD_INHIBIT, ...KEEP_AWAKE_HOLD]])
@@ -294,7 +400,7 @@ test('keep awake draws the switch off, on and unverified, and pressing it starts
 
   await stop()
   expect(world.spawn.killed).toEqual(['systemd-inhibit'])
-  expect(await text(/^○ Keep awake$/)).toBe('○ Keep awake')
+  expect(await text(/^○ Off$/)).toBe('○ Off')
   expect(await text(/unverified/)).toBeUndefined()
 })
 
@@ -304,7 +410,7 @@ test('keep awake on a verified candidate shows no unverified label', async ($, o
 
   await press()
 
-  expect(await text(/^ ● Keep awake · ∞ $/)).toBe(' ● Keep awake · ∞ ')
+  expect(await text(/^ ● On · ∞ $/)).toBe(' ● On · ∞ ')
   expect(await text(/unverified/)).toBeUndefined()
   await stop()
 })
@@ -313,12 +419,12 @@ test('keep awake turns itself off with a toast when the child exits later', asyn
   const { world, press, text, toasts, clock } = await givenKeepAwake($, on, { platform: 'Darwin' })
   world.spawn.plans.caffeinate = 'run'
   await press()
-  expect(await text(/^ ● Keep awake · ∞ $/)).toBe(' ● Keep awake · ∞ ')
+  expect(await text(/^ ● On · ∞ $/)).toBe(' ● On · ∞ ')
 
   world.spawn.endings.caffeinate?.()
   await clock.advance(1_000)
 
-  expect(await text(/^○ Keep awake$/)).toBe('○ Keep awake')
+  expect(await text(/^○ Off$/)).toBe('○ Off')
   expect(toasts).toEqual(['Keep awake stopped: caffeinate exited'])
   expect(world.spawn.killed).toEqual([])
 })
@@ -333,7 +439,7 @@ test('keep awake starts one child however often it is pressed while starting', a
   await Promise.all([first, second])
 
   expect(world.spawn.started).toHaveLength(1)
-  expect(await text(/^ ● Keep awake · ∞ $/)).toBe(' ● Keep awake · ∞ ')
+  expect(await text(/^ ● On · ∞ $/)).toBe(' ● On · ∞ ')
   expect(world.spawn.killed).toEqual([])
   await ui.press({ key: 'keep-awake-toggle' })
 })

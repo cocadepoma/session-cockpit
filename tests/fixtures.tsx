@@ -241,9 +241,12 @@ export const givenEngine = (
     docker: {
       containers: string[]
       images: string[]
+      volumes: string[]
+      danglingVolumes: string[]
       failure: { exitCode: number; stderr: string } | 'missing' | null
       actionFailure: { exitCode: number; stderr: string } | 'missing' | null
       imagesFailure: { exitCode: number; stderr: string } | null
+      volumesFailure: { exitCode: number; stderr: string } | null
       gate: { promise: Promise<void>; release: () => void } | null
       actionTimeouts: (number | undefined)[]
     }
@@ -299,7 +302,18 @@ export const givenEngine = (
       untracked: [],
       isFailing: false,
     },
-    docker: { containers: [], images: [], failure: null, actionFailure: null, imagesFailure: null, gate: null, actionTimeouts: [] },
+    docker: {
+      containers: [],
+      images: [],
+      volumes: [],
+      danglingVolumes: [],
+      failure: null,
+      actionFailure: null,
+      imagesFailure: null,
+      volumesFailure: null,
+      gate: null,
+      actionTimeouts: [],
+    },
   }
 
   on('command.register', (_, e) => {
@@ -406,6 +420,14 @@ export const givenEngine = (
         return ran(docker.imagesFailure.exitCode, '', docker.imagesFailure.stderr)
       }
       if (args[0] === 'images') return ran(0, docker.images.map(line => `${line}\n`).join(''))
+      if (args[0] === 'volume' && args[1] === 'ls') {
+        if (docker.volumesFailure !== null) return ran(docker.volumesFailure.exitCode, '', docker.volumesFailure.stderr)
+        const rows = args.includes('dangling=true')
+          ? docker.volumes.map(row => row.split('\t')[0] ?? '').filter(name => docker.danglingVolumes.includes(name))
+          : docker.volumes
+
+        return ran(0, rows.map(line => `${line}\n`).join(''))
+      }
       if (!DOCKER_ACTIONS.includes(args[0] ?? '')) return ran(0, '')
       docker.actionTimeouts.push(e.init?.timeoutMs)
       const act = () => {
@@ -636,11 +658,11 @@ export const registerSession = (
   files[`${SESSION_REGISTRY}/${entry.pid}.json`] = JSON.stringify(entry)
 }
 
-const DOCKER_ACTIONS = ['restart', 'stop', 'start', 'rm', 'rmi']
+const DOCKER_ACTIONS = ['restart', 'stop', 'start', 'rm', 'rmi', 'volume']
 
 const DOCKER_STATE_AFTER: Record<string, string> = { restart: 'running', start: 'running', stop: 'exited' }
 
-const applyDockerAction = (docker: { containers: string[]; images: string[] }, action: string, target: string) => {
+const applyDockerAction = (docker: { containers: string[]; images: string[]; volumes: string[] }, action: string, target: string) => {
   const state = DOCKER_STATE_AFTER[action]
   if (state !== undefined) {
     docker.containers = docker.containers.map(row => {
@@ -650,6 +672,7 @@ const applyDockerAction = (docker: { containers: string[]; images: string[] }, a
     })
   }
   if (action === 'rm') docker.containers = docker.containers.filter(row => row.split('\t')[0] !== target)
+  if (action === 'volume') docker.volumes = docker.volumes.filter(row => row.split('\t')[0] !== target)
   if (action === 'rmi') {
     docker.images = docker.images.filter(row => {
       const [id, repository, tag] = row.split('\t')
@@ -696,3 +719,5 @@ export const dockerContainer = (id: string, name: string, state: string, image =
 
 export const dockerImage = (id: string, repository: string, tag: string, size: string) =>
   [id, repository, tag, size].join('\t')
+
+export const dockerVolume = (name: string, driver = 'local') => [name, driver].join('\t')

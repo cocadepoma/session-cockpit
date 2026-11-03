@@ -11,7 +11,7 @@ import {
 } from '../lib/lists'
 import { listBlock } from '../lib/layout'
 import type { Block } from '../lib/layout'
-import { drawFilter, drawFold, drawListScroller } from '../lib/view'
+import { SECTION_INDENT, drawFilter, drawFold, drawListScroller } from '../lib/view'
 import type { PaneInput } from '../lib/view'
 
 const COLLAPSIBLE_MIN_ITEMS = 3
@@ -70,7 +70,7 @@ export async function drawMcp($: EngineInterface, e: PaneInput): Promise<Block |
         <Text bold>MCP</Text>
       )}
       {isMcpListOpen(meta.mcpServers, isOpen) && (
-        <Box flexDirection="column">
+        <Box key="mcp-body" flexDirection="column" paddingLeft={SECTION_INDENT}>
           {filterRow}
           {visible.map(server => (
             <Box key={server} flexDirection="row" gap={1}>

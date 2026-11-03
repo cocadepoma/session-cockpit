@@ -7,10 +7,14 @@ All notable changes to this mod. The format follows [Keep a Changelog](https://k
 ### Added
 
 - A Docker section, off by default (`Show Docker` in `/config` or Settings). Two tabs list the containers (running first, with their state and a `running/total` count) and the image references with their sizes, eight rows at a time with a filter. While it is open and the sidebar is shown it reads `docker ps --all` and `docker images` every five seconds and after each Bash call. When docker cannot answer it says `Docker is not running`, `Docker CLI not found` or docker's first error line instead of an empty list, and a failing `docker images` shows its reason in the Images tab.
-- Docker actions: press a container for `Restart` and `Stop` (running) or `Start` and `Delete` (stopped), and an image for `Delete`. `Delete` runs `docker rm` or `docker rmi` only on a second press within five seconds (`Confirm delete`), a deadline kept with the arm so a reload of the mod cannot stretch it, never with `--force`. The row shows `stopping…` and the like while docker works, actions get a one-minute timeout, and a refusal shows a toast with docker's first line.
+- A Volumes tab in the Docker section lists each volume by name, `in use` while any container (running or stopped) refers to it, else `unused`, read with `docker volume ls` alongside the containers and images. It filters by name, and a failing `docker volume ls` shows its reason in the tab. Rather than wrap when the sidebar is too narrow, the tabs drop their counts, then shorten to `Ctrs`, `Imgs` and `Vols`.
+- Docker actions: press a container for `Restart` and `Stop` (running) or `Start` and `Delete` (stopped), and an image or a volume for `Delete`. `Delete` runs `docker rm`, `docker rmi` or `docker volume rm` only on a second press within five seconds (`Confirm delete`), a deadline kept with the arm so a reload of the mod cannot stretch it, never with `--force`. The row shows `stopping…` and the like while docker works, actions get a one-minute timeout, and a refusal shows a toast with docker's first line.
 
 ### Changed
 
+- Each section's content is indented two columns under its title, so sections read as separate blocks. Rows are cut two columns sooner and the Context and Usage bars are two cells shorter, so nothing wraps.
+- One color, Claude orange, marks what is active or selected: the current model, session and conversation, the active Docker tab, and the selected Docker container or image, which is also marked `›`. Before, a selected row or the current session was only bold.
+- Keep awake is a section of its own, with a bold title and its row indented under it like Context and Usage; it does not fold. Off, the row reads `○ Off` beside the durations; on, the pill reads `● On · 1h left` (`● On · ∞` without a limit) in Claude orange instead of green.
 - Pressing a file in Files shows its diff inside the sidebar, in place of the sections, with a `Back` button (`b`), instead of opening a second tab. `Back` returns to the file's row. This avoids a diff opened behind the `Session` tab that never took focus.
 
 ## [0.25.0] - 2026-10-24

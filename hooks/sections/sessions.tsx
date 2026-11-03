@@ -13,8 +13,9 @@ import type { Block } from '../lib/layout'
 import { filterList, listWindow, readListFilter, readListOffset, readSectionOpen, setListFilter } from '../lib/lists'
 import { baseName, claudeConfigDirectory, transcriptPath } from '../lib/paths'
 import { truncate } from '../lib/text'
+import { ACTIVE_COLOR } from '../lib/theme'
 import { hasChanged } from '../lib/values'
-import { drawFilter, drawFold, drawListScroller } from '../lib/view'
+import { SECTION_INDENT, drawFilter, drawFold, drawListScroller } from '../lib/view'
 import type { PaneInput } from '../lib/view'
 
 const SESSION_TITLE_TTL_MS = 60_000
@@ -136,7 +137,7 @@ export async function drawSessions($: EngineInterface, e: PaneInput): Promise<Bl
         ],
       })}
       {isOpen && (
-        <Box flexDirection="column">
+        <Box key="sessions-body" flexDirection="column" paddingLeft={SECTION_INDENT}>
           {filterRow}
           {visible.map(session => {
             const status = SESSION_STATUSES[session.status]
@@ -152,7 +153,7 @@ export async function drawSessions($: EngineInterface, e: PaneInput): Promise<Bl
                 <Box flexDirection="row" gap={1}>
                   <Text color={color}>●</Text>
                   <Box flexGrow={1} flexShrink={1} minWidth={0}>
-                    <Text bold={session.isCurrent} wrap="truncate-end">
+                    <Text bold={session.isCurrent} color={session.isCurrent ? ACTIVE_COLOR : undefined} wrap="truncate-end">
                       {label}
                     </Text>
                   </Box>

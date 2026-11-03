@@ -54,7 +54,7 @@ test('the skills picker shows a short description and scrolls through a window o
   expect(await skillNames()).toEqual(
     ['01', '02', '03', '04', '05', '06', '07', '08'].map(number => `/skill-${number}`),
   )
-  expect(await text(/number 1 /)).toBe(' Does thing number 1 with a…')
+  expect(await text(/number 1 /)).toBe(' Does thing number 1 with…')
   expect(await text(/of 12/)).toBe('1–8 of 12')
 
   await ui.press({ key: 'skills-down' })

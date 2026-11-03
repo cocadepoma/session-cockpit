@@ -8,6 +8,7 @@ import { baseName } from '../lib/paths'
 import { describeError, record } from '../lib/trace'
 import { storedFlag } from '../lib/values'
 import { formatTokens } from '../lib/text'
+import { SECTION_INDENT } from '../lib/view'
 import type { PaneInput } from '../lib/view'
 
 const DETAILS_KEY = 'contextDetailsOpen'
@@ -115,7 +116,7 @@ export async function drawContextDetails($: EngineInterface, e: PaneInput): Prom
         {isOpen ? '▼' : '▶'} <Text color="inactive">details</Text>
       </Button>
       {isOpen && (
-        <Box flexDirection="column">
+        <Box key="context-details-body" flexDirection="column" paddingLeft={SECTION_INDENT}>
           {details.categories.length === 0 && <Text color="inactive">No breakdown yet</Text>}
           {drawRows($, e, 'category', details.categories, details.window)}
           {files.length > 0 && <Text bold>Memory files</Text>}
