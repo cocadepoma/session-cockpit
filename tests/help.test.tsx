@@ -34,7 +34,7 @@ test('the Help section is folded by default and unfolds into the about line, eve
     'Esc: return focus, close the diff',
     'Filter box: type to narrow the list, Enter acts on the first match',
     '● Keep awake: pick 30m, 1h, 2h, 5h or ∞; press ● to stop',
-    'Settings: press a row to show or hide that part; Activity starts hidden',
+    'Settings: press a row to show or hide that part; Activity and Docker start hidden',
   ])
   expect(await text(/^Files: repository/)).toBe(
     "Files: repository changes and Claude's edits, then Other (outside the repository); outside git, only Claude's edits.",

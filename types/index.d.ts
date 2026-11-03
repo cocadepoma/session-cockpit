@@ -83,6 +83,19 @@ export type SidebarContextDetails = {
 
 export type SidebarLogo = { art: string | null }
 
+export type SidebarDockerContainer = { id: string; name: string; image: string; state: string; status: string }
+
+export type SidebarDockerImage = { id: string; repository: string; tag: string; size: string }
+
+export type SidebarDocker = {
+  status: 'unknown' | 'ready' | 'unavailable'
+  reason: string | null
+  containers: SidebarDockerContainer[]
+  images: SidebarDockerImage[]
+}
+
+export type SidebarDockerTab = 'containers' | 'images'
+
 declare module 'claude-code' {
   interface PluginState {
     'session-cockpit': {
@@ -110,6 +123,8 @@ declare module 'claude-code' {
       gitFiles: SidebarFile[]
       diff: SidebarDiff | null
       keepAwake: SidebarKeepAwake
+      docker: SidebarDocker
+      dockerTab: SidebarDockerTab
       listFilter: StateFamily<string>
       listOffset: StateFamily<number>
       isSectionOpen: StateFamily<boolean>

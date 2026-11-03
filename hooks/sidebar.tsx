@@ -13,6 +13,7 @@ import { catchUpWatchers } from './refresh'
 import { drawActivity } from './sections/activity'
 import { countConversations, drawConversations } from './sections/conversations'
 import { drawDiffView, readDiff } from './sections/diff'
+import { countDocker, drawDocker } from './sections/docker'
 import { countFiles, drawFiles } from './sections/files'
 import { drawFooter } from './sections/footer'
 import { drawHeader, drawModelLine } from './sections/header'
@@ -35,7 +36,7 @@ const FULLSCREEN_HINT = 'Full sidebar: set "tui": "fullscreen" in ~/.claude/sett
 const WIDTH_HINT = 'Full sidebar: widen the terminal to 110 columns'
 const VS_CODE_TEXT = 'The sidebar is off in VS Code.'
 
-const WHEEL_LISTS: readonly (ListId & ToggleableSection)[] = ['skills', 'sessions', 'conversations', 'notes', 'files', 'mcp']
+const WHEEL_LISTS: readonly (ListId & ToggleableSection)[] = ['skills', 'sessions', 'conversations', 'notes', 'files', 'mcp', 'docker']
 
 let paneOffset = 0
 let listSpans: ReturnType<typeof stackBlocks> = []
@@ -130,6 +131,8 @@ async function countList($: EngineInterface, id: ListId) {
       return countFiles($)
     case 'mcp':
       return countServers($)
+    case 'docker':
+      return countDocker($)
   }
 }
 
@@ -205,7 +208,7 @@ export async function drawPane($: EngineInterface, e: PaneInput, settings: Setti
 
     return drawDiffView($, e)
   }
-  const [logo, header, keepAwake, context, limits, skills, sessions, conversations, notes, files, mcp, activity, todos, help, settingsSection, footer] =
+  const [logo, header, keepAwake, context, limits, skills, sessions, conversations, notes, files, mcp, docker, activity, todos, help, settingsSection, footer] =
     await Promise.all([
       settings.isShown('logo') ? drawLogo($, e) : null,
       drawHeader($, e),
@@ -218,6 +221,7 @@ export async function drawPane($: EngineInterface, e: PaneInput, settings: Setti
       settings.isShown('notes') ? drawNotes($, e) : null,
       settings.isShown('files') ? drawFiles($, e) : null,
       settings.isShown('mcp') ? drawMcp($, e) : null,
+      settings.isShown('docker') ? drawDocker($, e) : null,
       settings.isShown('activity') ? drawActivity($, e) : null,
       settings.isShown('todos') ? drawTodos($, e) : null,
       settings.isShown('help') ? drawHelp($, e) : null,
@@ -225,7 +229,7 @@ export async function drawPane($: EngineInterface, e: PaneInput, settings: Setti
       drawFooter($, e),
     ])
 
-  listSpans = stackBlocks([logo, header, keepAwake, context, limits, skills, sessions, conversations, notes, files, mcp])
+  listSpans = stackBlocks([logo, header, keepAwake, context, limits, skills, sessions, conversations, notes, files, mcp, docker])
 
   return (
     <Box flexDirection="column" paddingX={1} gap={1}>
@@ -240,6 +244,7 @@ export async function drawPane($: EngineInterface, e: PaneInput, settings: Setti
       {notes?.element}
       {files?.element}
       {mcp?.element}
+      {docker?.element}
       {activity}
       {todos}
       {help}

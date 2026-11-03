@@ -4,6 +4,10 @@ All notable changes to this mod. The format follows [Keep a Changelog](https://k
 
 ## [Unreleased]
 
+### Added
+
+- A Docker section, off by default (`Show Docker` in `/config` or Settings). Two tabs list the containers (running first, with their state and a `running/total` count) and the image references with their sizes, eight rows at a time with a filter. While it is open and the sidebar is shown it reads `docker ps --all` and `docker images` every five seconds and after each Bash call. When docker cannot answer it says `Docker is not running`, `Docker CLI not found` or docker's first error line instead of an empty list.
+
 ### Changed
 
 - Pressing a file in Files shows its diff inside the sidebar, in place of the sections, with a `Back` button (`b`), instead of opening a second tab. `Back` returns to the file's row. This avoids a diff opened behind the `Session` tab that never took focus.

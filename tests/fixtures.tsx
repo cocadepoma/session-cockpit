@@ -28,6 +28,7 @@ export const SETTING_FIELDS = [
   'showNotes',
   'showFiles',
   'showMcp',
+  'showDocker',
   'showActivity',
   'showTodos',
   'showHelp',
@@ -237,6 +238,11 @@ export const givenEngine = (
       untracked: string[]
       isFailing: boolean
     }
+    docker: {
+      containers: string[]
+      images: string[]
+      failure: { exitCode: number; stderr: string } | 'missing' | null
+    }
   } = {
     sessionId: 'current',
     cwd: '/home/dev/app',
@@ -289,6 +295,7 @@ export const givenEngine = (
       untracked: [],
       isFailing: false,
     },
+    docker: { containers: [], images: [], failure: null },
   }
 
   on('command.register', (_, e) => {
@@ -382,6 +389,18 @@ export const givenEngine = (
       if (args[0] === '-f') delete world.files[args[2] ?? '']
 
       return { value: { exitCode: 0, stdout: '', stderr: '', isStdoutTruncated: false, isStderrTruncated: false } }
+    }
+    if (command === 'docker') {
+      const { docker } = world
+      const ran = (exitCode: number, stdout: string, stderr = '') => ({
+        value: { exitCode, stdout, stderr, isStdoutTruncated: false, isStderrTruncated: false },
+      })
+      if (docker.failure === 'missing') return { deny: 'spawn docker ENOENT' }
+      if (docker.failure !== null) return ran(docker.failure.exitCode, '', docker.failure.stderr)
+      if (args[0] === 'ps') return ran(0, docker.containers.map(line => `${line}\n`).join(''))
+      if (args[0] === 'images') return ran(0, docker.images.map(line => `${line}\n`).join(''))
+
+      return ran(0, '')
     }
     if (command === 'git') {
       const { git } = world
@@ -619,3 +638,9 @@ export const givenGitRepository = (world: { git: { top: string | undefined; stat
 
 export const listedGroupRows = async (ui: { findAll: (query: { type: 'Text'; text: RegExp }) => Promise<{ text?: string }[]> }) =>
   (await ui.findAll({ type: 'Text', text: /^(…)?((app|Other) \(\d+\)|src\/|~\/notes\/)/ })).map(found => found.text)
+
+export const dockerContainer = (id: string, name: string, state: string, image = 'postgres:18-alpine') =>
+  [id, name, image, state, state === 'running' ? 'Up 2 hours' : 'Exited (0) 2 days ago'].join('\t')
+
+export const dockerImage = (id: string, repository: string, tag: string, size: string) =>
+  [id, repository, tag, size].join('\t')
