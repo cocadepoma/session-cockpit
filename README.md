@@ -40,12 +40,12 @@ The sidebar stays hidden in VS Code: in the Claude Code extension and in `claude
 
 <img src="docs/images/sidebar-settings.png" alt="The sidebar with the Settings section unfolded" width="420">
 
-Each section's content is indented two columns under its title. One color, Claude orange, marks what is active or selected: the current model, session and conversation, the active Docker tab and the selected Docker row (also marked `›`). Things you can press keep the suggestion color.
+Each section's content is indented two columns under its title. One color, Claude orange, marks what is active or selected: the current model, session and conversation, Keep awake while it runs, the active Docker tab and the selected Docker row (also marked `›`). Things you can press keep the suggestion color.
 
 | Section | What you see | What you can do |
 |---|---|---|
 | Header | Session title, model and effort, project, git branch (`*` dirty, `↑` ahead, `↓` behind); the logo above it, unless hidden | Press the model line to open a picker with the models (`sonnet`, `opus`, `haiku`, `fable`) and the effort levels (`auto`, `low`, `medium`, `high`, `xhigh`, `max`); a pick runs `/model` or `/effort`, and the current one is highlighted and marked `●`; a `▶`/`▼` before the model shows it can be pressed. The effort is learned from `/effort` replies and from each turn, so it is unmarked until the first of those. While Claude is working the options are dim and wait until it is idle |
-| Keep awake | `○` off, `●` on | Press a duration (`30m`, `1h`, `2h`, `5h` or `∞`) to stop the screen locking or the computer sleeping while idle; the `●` shows the time left, press it to stop |
+| Keep awake | A section of its own, not foldable: `○ Off` beside the durations, or a Claude orange `● On · 1h left` (`● On · ∞` without a limit) while it runs | Press a duration (`30m`, `1h`, `2h`, `5h` or `∞`) to stop the screen locking or the computer sleeping while idle; the `● On` pill counts down the time left, press it to stop |
 | Context | Context-window bar, tokens, cost so far (`~` marks an estimate) | `details` unfolds what fills the window, by category; `measure` also lists the largest memory files and MCP servers (it counts tokens with the API, so it runs only when you press it) |
 | Usage | 5-hour, 7-day and spend limits with time to reset; a `▲ N%` mark when the 5-hour or 7-day window is on course to reach 90% or more before it resets; the last reading and its age after a restart; `today $x · 7d $y`, what all your sessions cost today and over the last seven days | |
 | Skills | Your skills and plugin commands | Filter; press one to put it in the prompt |

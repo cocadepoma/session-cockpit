@@ -6,9 +6,10 @@ import { readSessionRegistry } from '../data/registry'
 import type { Block } from '../lib/layout'
 import { claudeConfigDirectory } from '../lib/paths'
 import { PROCESS_TIMEOUT_MS } from '../lib/process'
+import { ACTIVE_COLOR } from '../lib/theme'
 import { record } from '../lib/trace'
 import { hasChanged } from '../lib/values'
-import { paneWidth } from '../lib/view'
+import { SECTION_INDENT, rowWidth } from '../lib/view'
 import type { PaneInput } from '../lib/view'
 
 const KEEP_AWAKE_GRACE_MS = 500
@@ -277,44 +278,60 @@ export function startKeepAwakeTick($: EngineInterface) {
   $.clock.every(KEEP_AWAKE_TICK_MS, () => void tickKeepAwake($))
 }
 
-export async function drawKeepAwake($: EngineInterface, e: PaneInput): Promise<Block> {
+// The title and one body row: the presets while it is off, the pill while it is on.
+const KEEP_AWAKE_ROWS = 2
+
+function drawKeepAwakeOff($: EngineInterface, e: PaneInput) {
   const { Box, Button, Text } = $.ui.resolve(e)
-  const keepAwake = await read($, keepAwakeState)
 
-  if (!keepAwake.isOn) {
-    const element = (
-      <Box flexDirection="row">
-        <Text bold color="suggestion">○ Keep awake</Text>
-        <Text>   </Text>
-        {KEEP_AWAKE_PRESETS.map((preset, index) => (
-          <Box key={preset.id} flexDirection="row">
-            {index > 0 && (
-              <Box marginX={1}>
-                <Text dimColor>·</Text>
-              </Box>
-            )}
-            <Button key={`keep-awake-${preset.id}`} plain onPress={() => void pressKeepAwakePreset($, preset.seconds)}>
-              <Text color="suggestion">{preset.label}</Text>
-            </Button>
-          </Box>
-        ))}
-      </Box>
-    )
+  return (
+    <Box flexDirection="row">
+      <Text color="inactive">○ Off</Text>
+      <Text>   </Text>
+      {KEEP_AWAKE_PRESETS.map((preset, index) => (
+        <Box key={preset.id} flexDirection="row">
+          {index > 0 && (
+            <Box marginX={1}>
+              <Text dimColor>·</Text>
+            </Box>
+          )}
+          <Button key={`keep-awake-${preset.id}`} plain onPress={() => void pressKeepAwakePreset($, preset.seconds)}>
+            <Text color="suggestion">{preset.label}</Text>
+          </Button>
+        </Box>
+      ))}
+    </Box>
+  )
+}
 
-    return { element, rows: 1 }
-  }
-  const left = keepAwake.minutesLeft === null ? '∞' : formatKeepAwakeMinutes(keepAwake.minutesLeft)
-  const pill = ` ● Keep awake · ${left} `
-  const hint = pill.length + UNVERIFIED_HINT.length <= paneWidth(e) ? UNVERIFIED_HINT : UNVERIFIED_SHORT_HINT
+function drawKeepAwakeOn($: EngineInterface, e: PaneInput, keepAwake: SidebarKeepAwake) {
+  const { Box, Button, Text } = $.ui.resolve(e)
+  const left = keepAwake.minutesLeft === null ? '∞' : `${formatKeepAwakeMinutes(keepAwake.minutesLeft)} left`
+  const pill = ` ● On · ${left} `
+  const hint = pill.length + UNVERIFIED_HINT.length <= rowWidth(e) ? UNVERIFIED_HINT : UNVERIFIED_SHORT_HINT
 
-  const element = (
+  return (
     <Box flexDirection="row">
       <Button key="keep-awake-toggle" plain onPress={() => void pressKeepAwakePill($)}>
-        <Text bold color="inverseText" backgroundColor="success">{pill}</Text>
+        <Text bold color="inverseText" backgroundColor={ACTIVE_COLOR}>{pill}</Text>
         {!keepAwake.isVerified && <Text color="warning">{hint}</Text>}
       </Button>
     </Box>
   )
+}
 
-  return { element, rows: 1 }
+export async function drawKeepAwake($: EngineInterface, e: PaneInput): Promise<Block> {
+  const { Box, Text } = $.ui.resolve(e)
+  const keepAwake = await read($, keepAwakeState)
+
+  const element = (
+    <Box flexDirection="column">
+      <Text bold>Keep awake</Text>
+      <Box key="keep-awake-body" flexDirection="column" paddingLeft={SECTION_INDENT}>
+        {keepAwake.isOn ? drawKeepAwakeOn($, e, keepAwake) : drawKeepAwakeOff($, e)}
+      </Box>
+    </Box>
+  )
+
+  return { element, rows: KEEP_AWAKE_ROWS }
 }
