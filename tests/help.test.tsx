@@ -7,7 +7,7 @@ test('the Help section is folded by default and unfolds into the about line, eve
 
   const ui = await $.ui.mount({ ...PANE, surface: 'terminal' })
   const text = async (pattern: RegExp) => (await ui.find({ type: 'Text', text: pattern }))?.text
-  const gestures = async () => (await ui.findAll({ type: 'Text', text: /^(▶ header|Wheel|Skill|Conversation|\+ new|Note|Close mark|ctrl\+x tab|File|Esc|Filter box|● Keep awake|Settings):/ })).map(found => found.text)
+  const gestures = async () => (await ui.findAll({ type: 'Text', text: /^(▶ header|Wheel|Skill|Conversation|\+ new|Note|Close mark|ctrl\+x tab|File|Esc|Filter box|● Keep awake|Docker|Settings):/ })).map(found => found.text)
 
   expect(await text(/^Help$/)).toBe('Help')
   expect(await text(/^Commands$/)).toBeUndefined()
@@ -34,6 +34,7 @@ test('the Help section is folded by default and unfolds into the about line, eve
     'Esc: return focus, close the diff',
     'Filter box: type to narrow the list, Enter acts on the first match',
     '● Keep awake: pick 30m, 1h, 2h, 5h or ∞; press ● to stop',
+    'Docker: press a container or image for its actions; Delete needs a second press',
     'Settings: press a row to show or hide that part; Activity and Docker start hidden',
   ])
   expect(await text(/^Files: repository/)).toBe(

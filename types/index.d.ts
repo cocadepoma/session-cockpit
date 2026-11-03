@@ -96,6 +96,14 @@ export type SidebarDocker = {
 
 export type SidebarDockerTab = 'containers' | 'images'
 
+export type SidebarDockerAction = 'restart' | 'stop' | 'start' | 'rm' | 'rmi'
+
+export type SidebarDockerControl = {
+  selected: string | null
+  armed: string | null
+  pending: { target: string; action: SidebarDockerAction }[]
+}
+
 declare module 'claude-code' {
   interface PluginState {
     'session-cockpit': {
@@ -125,6 +133,7 @@ declare module 'claude-code' {
       keepAwake: SidebarKeepAwake
       docker: SidebarDocker
       dockerTab: SidebarDockerTab
+      dockerControl: SidebarDockerControl
       listFilter: StateFamily<string>
       listOffset: StateFamily<number>
       isSectionOpen: StateFamily<boolean>

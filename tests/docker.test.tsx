@@ -1,7 +1,7 @@
 import { expect, mock, test } from 'claude-code/testing'
 import type { TestBody } from 'claude-code/testing'
 import type { On } from 'claude-code'
-import { APP, NOW, PANE, dockerContainer, dockerImage, givenEngine } from './fixtures'
+import { APP, NOW, PANE, dockerContainer, dockerImage, givenEngine, holdDocker } from './fixtures'
 
 const SHOWN = { options: { showDocker: true } }
 
@@ -257,5 +257,192 @@ test('more than eight containers scroll in windows of eight', SHOWN, async ($, o
 
   await ui.press({ key: 'docker-down' })
   expect(await listedContainers(ui)).toEqual(['api-3', 'api-4', 'api-5', 'api-6', 'api-7', 'api-8', 'api-9', 'api-10'])
+  await ui.unmount()
+})
+
+const actionCalls = (ran: string[][]) =>
+  ran.filter(argv => argv[0] === 'docker' && !['ps', 'images'].includes(argv[1] ?? '')).map(argv => argv.slice(1))
+
+const actionLabels = async (ui: { findAll: (query: { type: 'Text'; text: RegExp }) => Promise<{ text?: string }[]> }) =>
+  (await ui.findAll({ type: 'Text', text: /^(Restart|Stop|Start|Delete|Confirm delete)$/ })).map(found => found.text)
+
+test('pressing a running container offers Restart and Stop, a stopped one Start and Delete, and a second press hides them', SHOWN, async ($, on) => {
+  await givenDocker($, on)
+  const ui = await $.ui.mount({ ...PANE, surface: 'terminal' })
+  expect(await actionLabels(ui)).toEqual([])
+
+  await ui.press({ key: `docker-container:${MAILPIT}` })
+  expect(await actionLabels(ui)).toEqual(['Restart', 'Stop'])
+
+  await ui.press({ key: `docker-container:${POSTGRES}` })
+  expect(await actionLabels(ui)).toEqual(['Start', 'Delete'])
+
+  await ui.press({ key: `docker-container:${POSTGRES}` })
+  expect(await actionLabels(ui)).toEqual([])
+  await ui.unmount()
+})
+
+for (const [action, label, container, after] of [
+  ['restart', 'Restart', MAILPIT, ['Restart', 'Stop']],
+  ['stop', 'Stop', MAILPIT, ['Start', 'Delete']],
+  ['start', 'Start', POSTGRES, ['Restart', 'Stop']],
+] as const) {
+  test(`${label} runs docker ${action} on that container at once and the list follows`, SHOWN, async ($, on) => {
+    const { world, toasts } = await givenDocker($, on, { usesMockClock: true })
+    const ui = await $.ui.mount({ ...PANE, surface: 'terminal' })
+    await ui.press({ key: `docker-container:${container}` })
+    world.ran.length = 0
+
+    await ui.press({ key: `docker-${action}` })
+
+    expect(actionCalls(world.ran)).toEqual([[action, '--', container]])
+    expect(dockerCalls(world.ran).slice(1)).toEqual(['ps', 'images'])
+    expect(await actionLabels(ui)).toEqual([...after])
+    expect(toasts).toEqual([])
+    await ui.unmount()
+  })
+}
+
+test('Delete asks for a second press before it removes the container', SHOWN, async ($, on) => {
+  const { world } = await givenDocker($, on, { usesMockClock: true })
+  const ui = await $.ui.mount({ ...PANE, surface: 'terminal' })
+  await ui.press({ key: `docker-container:${POSTGRES}` })
+
+  await ui.press({ key: 'docker-delete' })
+  expect(actionCalls(world.ran)).toEqual([])
+  expect(await actionLabels(ui)).toEqual(['Start', 'Confirm delete'])
+  expect((await ui.find({ type: 'Text', text: /^Confirm delete$/ }))?.props.color).toBe('error')
+
+  await ui.press({ key: 'docker-delete' })
+  expect(actionCalls(world.ran)).toEqual([['rm', '--', POSTGRES]])
+  expect(await listedContainers(ui)).toEqual(['api-mailpit-1'])
+  expect(await actionLabels(ui)).toEqual([])
+  await ui.unmount()
+})
+
+test('a Delete left unconfirmed for five seconds goes back to Delete and the next press asks again', SHOWN, async ($, on) => {
+  const { world, clock } = await givenDocker($, on, { usesMockClock: true })
+  const ui = await $.ui.mount({ ...PANE, surface: 'terminal' })
+  await ui.press({ key: `docker-container:${POSTGRES}` })
+  await ui.press({ key: 'docker-delete' })
+
+  await clock?.advance(5_000)
+  expect(await actionLabels(ui)).toEqual(['Start', 'Delete'])
+
+  await ui.press({ key: 'docker-delete' })
+  expect(actionCalls(world.ran)).toEqual([])
+  expect(await actionLabels(ui)).toEqual(['Start', 'Confirm delete'])
+  await ui.unmount()
+})
+
+test('pressing another row or another action drops a pending Delete', SHOWN, async ($, on) => {
+  const { world } = await givenDocker($, on, { usesMockClock: true })
+  const ui = await $.ui.mount({ ...PANE, surface: 'terminal' })
+  await ui.press({ key: `docker-container:${POSTGRES}` })
+  await ui.press({ key: 'docker-delete' })
+
+  await ui.press({ key: `docker-container:${MAILPIT}` })
+  await ui.press({ key: `docker-container:${POSTGRES}` })
+  expect(await actionLabels(ui)).toEqual(['Start', 'Delete'])
+
+  await ui.press({ key: 'docker-delete' })
+  await ui.press({ key: 'docker-tab:images' })
+  await ui.press({ key: 'docker-tab:containers' })
+  await ui.press({ key: `docker-container:${POSTGRES}` })
+  expect(await actionLabels(ui)).toEqual(['Start', 'Delete'])
+  expect(actionCalls(world.ran)).toEqual([])
+  await ui.unmount()
+})
+
+test('deleting an image removes its reference with two presses, and a dangling image by its ID', SHOWN, async ($, on) => {
+  const { world } = await givenDocker($, on, { usesMockClock: true })
+  const ui = await $.ui.mount({ ...PANE, surface: 'terminal' })
+  await ui.press({ key: 'docker-tab:images' })
+
+  await ui.press({ key: 'docker-image:47928bf67eb6/nginx:1.30-alpine' })
+  expect(await actionLabels(ui)).toEqual(['Delete'])
+  await ui.press({ key: 'docker-delete' })
+  expect(actionCalls(world.ran)).toEqual([])
+  await ui.press({ key: 'docker-delete' })
+  expect(actionCalls(world.ran)).toEqual([['rmi', '--', 'nginx:1.30-alpine']])
+  expect((await ui.findAll({ type: 'Text', text: /^(nginx:|0123456789ab)/ })).map(found => found.text)).toEqual([
+    'nginx:stable-alpine',
+    '0123456789ab',
+  ])
+
+  await ui.press({ key: 'docker-image:0123456789ab/<none>:<none>' })
+  await ui.press({ key: 'docker-delete' })
+  await ui.press({ key: 'docker-delete' })
+  expect(actionCalls(world.ran).at(-1)).toEqual(['rmi', '--', '0123456789ab'])
+  await ui.unmount()
+})
+
+test('while docker works on a container its row says so and offers nothing to press', SHOWN, async ($, on) => {
+  const { world } = await givenDocker($, on, { usesMockClock: true })
+  const ui = await $.ui.mount({ ...PANE, surface: 'terminal' })
+  await ui.press({ key: `docker-container:${MAILPIT}` })
+  const release = holdDocker(world.docker)
+
+  const pressed = ui.press({ key: 'docker-stop' })
+  expect(await actionLabels(ui)).toEqual([])
+  expect((await ui.find({ type: 'Text', text: /^stopping…$/ }))?.props.color).toBe('warning')
+  expect(await ui.find({ key: 'docker-restart' })).toBeUndefined()
+
+  await ui.press({ key: `docker-container:${POSTGRES}` })
+  expect((await ui.find({ type: 'Text', text: /^stopping…$/ }))?.text).toBe('stopping…')
+  await ui.press({ key: `docker-container:${MAILPIT}` })
+
+  release()
+  await pressed
+  expect(await actionLabels(ui)).toEqual(['Start', 'Delete'])
+  expect(actionCalls(world.ran)).toEqual([['stop', '--', MAILPIT]])
+  await ui.unmount()
+})
+
+test('an action docker refuses shows a toast with docker\'s first line and leaves the row usable', SHOWN, async ($, on) => {
+  const { world, toasts } = await givenDocker($, on, { usesMockClock: true })
+  const ui = await $.ui.mount({ ...PANE, surface: 'terminal' })
+  await ui.press({ key: 'docker-tab:images' })
+  await ui.press({ key: 'docker-image:47928bf67eb6/nginx:1.30-alpine' })
+  world.docker.actionFailure = {
+    exitCode: 1,
+    stderr: 'Error response from daemon: conflict: unable to remove repository reference "nginx:1.30-alpine" (must force)\n',
+  }
+
+  await ui.press({ key: 'docker-delete' })
+  await ui.press({ key: 'docker-delete' })
+
+  expect(toasts).toEqual([
+    'Could not delete nginx:1.30-alpine: Error response from daemon: conflict: unable to remove repository reference "nginx:1.30-alpine" (must force)',
+  ])
+  expect(await actionLabels(ui)).toEqual(['Delete'])
+  expect((await ui.findAll({ type: 'Text', text: /^nginx:/ })).map(found => found.text)).toEqual([
+    'nginx:1.30-alpine',
+    'nginx:stable-alpine',
+  ])
+  await ui.unmount()
+})
+
+test('an action that cannot start shows a toast saying why', SHOWN, async ($, on) => {
+  const { world, toasts } = await givenDocker($, on, { usesMockClock: true })
+  const ui = await $.ui.mount({ ...PANE, surface: 'terminal' })
+  await ui.press({ key: `docker-container:${MAILPIT}` })
+  world.docker.actionFailure = 'missing'
+
+  await ui.press({ key: 'docker-restart' })
+
+  expect(toasts).toEqual(['Could not restart api-mailpit-1: Docker CLI not found'])
+  expect(await actionLabels(ui)).toEqual(['Restart', 'Stop'])
+  await ui.unmount()
+})
+
+test('actions run with a one-minute timeout, never the five-second read timeout', SHOWN, async ($, on) => {
+  const { world } = await givenDocker($, on, { usesMockClock: true })
+  const ui = await $.ui.mount({ ...PANE, surface: 'terminal' })
+  await ui.press({ key: `docker-container:${MAILPIT}` })
+
+  await ui.press({ key: 'docker-stop' })
+
+  expect(world.docker.actionTimeouts).toEqual([60_000])
   await ui.unmount()
 })

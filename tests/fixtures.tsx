@@ -242,6 +242,9 @@ export const givenEngine = (
       containers: string[]
       images: string[]
       failure: { exitCode: number; stderr: string } | 'missing' | null
+      actionFailure: { exitCode: number; stderr: string } | 'missing' | null
+      gate: { promise: Promise<void>; release: () => void } | null
+      actionTimeouts: (number | undefined)[]
     }
   } = {
     sessionId: 'current',
@@ -295,7 +298,7 @@ export const givenEngine = (
       untracked: [],
       isFailing: false,
     },
-    docker: { containers: [], images: [], failure: null },
+    docker: { containers: [], images: [], failure: null, actionFailure: null, gate: null, actionTimeouts: [] },
   }
 
   on('command.register', (_, e) => {
@@ -399,8 +402,17 @@ export const givenEngine = (
       if (docker.failure !== null) return ran(docker.failure.exitCode, '', docker.failure.stderr)
       if (args[0] === 'ps') return ran(0, docker.containers.map(line => `${line}\n`).join(''))
       if (args[0] === 'images') return ran(0, docker.images.map(line => `${line}\n`).join(''))
+      if (!DOCKER_ACTIONS.includes(args[0] ?? '')) return ran(0, '')
+      docker.actionTimeouts.push(e.init?.timeoutMs)
+      const act = () => {
+        if (docker.actionFailure === 'missing') return { deny: 'spawn docker ENOENT' }
+        if (docker.actionFailure !== null) return ran(docker.actionFailure.exitCode, '', docker.actionFailure.stderr)
+        applyDockerAction(docker, args[0] ?? '', args.at(-1) ?? '')
 
-      return ran(0, '')
+        return ran(0, `${args.at(-1) ?? ''}\n`)
+      }
+
+      return docker.gate === null ? act() : docker.gate.promise.then(act)
     }
     if (command === 'git') {
       const { git } = world
@@ -618,6 +630,42 @@ export const registerSession = (
   entry: { pid: number; sessionId: string; cwd: string; name: string; status: string; waitingFor?: unknown },
 ) => {
   files[`${SESSION_REGISTRY}/${entry.pid}.json`] = JSON.stringify(entry)
+}
+
+const DOCKER_ACTIONS = ['restart', 'stop', 'start', 'rm', 'rmi']
+
+const DOCKER_STATE_AFTER: Record<string, string> = { restart: 'running', start: 'running', stop: 'exited' }
+
+const applyDockerAction = (docker: { containers: string[]; images: string[] }, action: string, target: string) => {
+  const state = DOCKER_STATE_AFTER[action]
+  if (state !== undefined) {
+    docker.containers = docker.containers.map(row => {
+      const [id = '', name = '', image = '', , status = ''] = row.split('\t')
+
+      return id === target ? [id, name, image, state, status].join('\t') : row
+    })
+  }
+  if (action === 'rm') docker.containers = docker.containers.filter(row => row.split('\t')[0] !== target)
+  if (action === 'rmi') {
+    docker.images = docker.images.filter(row => {
+      const [id, repository, tag] = row.split('\t')
+
+      return id !== target && `${repository}:${tag}` !== target
+    })
+  }
+}
+
+export const holdDocker = (docker: { gate: { promise: Promise<void>; release: () => void } | null }) => {
+  let release = () => {}
+  const promise = new Promise<void>(resolve => {
+    release = resolve
+  })
+  docker.gate = { promise, release }
+
+  return () => {
+    docker.gate = null
+    release()
+  }
 }
 
 const withoutGitOptions = (argv: string[]): string[] => {
