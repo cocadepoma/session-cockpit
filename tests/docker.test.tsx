@@ -4,6 +4,7 @@ import type { On } from 'claude-code'
 import { APP, NOW, PANE, dockerContainer, dockerImage, givenEngine, holdDocker } from './fixtures'
 
 const SHOWN = { options: { showDocker: true } }
+const SECTION_INDENT = 2
 
 const POSTGRES = '1622725f7f74'
 const MAILPIT = 'b9839b50e0f3'
@@ -137,7 +138,70 @@ test('a long container name is cut to the row', SHOWN, async ($, on) => {
   const [name] = await listedContainers(ui)
 
   expect(name?.endsWith('…')).toBe(true)
-  expect((name?.length ?? 0) + ' running'.length + 2).toBeLessThanOrEqual(PANE.props.bodyColumns - 2)
+  expect((name?.length ?? 0) + ' running'.length + 2).toBeLessThanOrEqual(PANE.props.bodyColumns - 2 - SECTION_INDENT)
+  await ui.unmount()
+})
+
+test('the Docker list is indented two columns under its title', SHOWN, async ($, on) => {
+  await givenDocker($, on)
+
+  const ui = await $.ui.mount({ ...PANE, surface: 'terminal' })
+
+  expect((await ui.find({ key: 'docker-body' }))?.props.paddingLeft).toBe(SECTION_INDENT)
+  await ui.unmount()
+})
+
+test('the active tab takes the active color and the other tab stays inactive', SHOWN, async ($, on) => {
+  await givenDocker($, on)
+  const ui = await $.ui.mount({ ...PANE, surface: 'terminal' })
+  const tabColors = async () =>
+    (await ui.findAll({ type: 'Text', text: /^(Containers|Images) \d+$/ })).map(found => found.props.color)
+
+  expect(await tabColors()).toEqual(['claude', 'inactive'])
+
+  await ui.press({ key: 'docker-tab:images' })
+  expect(await tabColors()).toEqual(['inactive', 'claude'])
+  await ui.unmount()
+})
+
+test('the selected container is marked with › and the active color, and the others are not', SHOWN, async ($, on) => {
+  await givenDocker($, on)
+  const ui = await $.ui.mount({ ...PANE, surface: 'terminal' })
+  const labelColors = async () =>
+    (await ui.findAll({ type: 'Text', text: /^api-/ })).map(found => [found.text, found.props.color])
+  expect(await ui.findAll({ type: 'Text', text: /^›$/ })).toEqual([])
+
+  await ui.press({ key: `docker-container:${POSTGRES}` })
+
+  expect(await labelColors()).toEqual([
+    ['api-mailpit-1', undefined],
+    ['api-postgres-1', 'claude'],
+  ])
+  const marks = await ui.findAll({ type: 'Text', text: /^›$/ })
+  expect(marks.map(found => found.props.color)).toEqual(['claude'])
+
+  await ui.press({ key: `docker-container:${POSTGRES}` })
+  expect(await labelColors()).toEqual([
+    ['api-mailpit-1', undefined],
+    ['api-postgres-1', undefined],
+  ])
+  expect(await ui.findAll({ type: 'Text', text: /^›$/ })).toEqual([])
+  await ui.unmount()
+})
+
+test('the selected image is marked with › and the active color', SHOWN, async ($, on) => {
+  await givenDocker($, on)
+  const ui = await $.ui.mount({ ...PANE, surface: 'terminal' })
+  await ui.press({ key: 'docker-tab:images' })
+
+  await ui.press({ key: 'docker-image:47928bf67eb6/nginx:stable-alpine' })
+
+  const labels = await ui.findAll({ type: 'Text', text: /^nginx:/ })
+  expect(labels.map(found => [found.text, found.props.color])).toEqual([
+    ['nginx:1.30-alpine', undefined],
+    ['nginx:stable-alpine', 'claude'],
+  ])
+  expect((await ui.findAll({ type: 'Text', text: /^›$/ })).length).toBe(1)
   await ui.unmount()
 })
 
@@ -186,7 +250,7 @@ test('any other docker failure shows the first line docker wrote, cut to the row
   const notice = (await ui.find({ type: 'Text', text: /^permission denied/ }))?.text
 
   expect(notice?.endsWith('…')).toBe(true)
-  expect(notice?.length).toBe(PANE.props.bodyColumns - 2)
+  expect(notice?.length).toBe(PANE.props.bodyColumns - 2 - SECTION_INDENT)
   await ui.unmount()
 })
 
@@ -503,8 +567,8 @@ test('a failing docker images shows its reason in the Images tab and leaves the 
   expect((await ui.find({ type: 'Text', text: /^Images$/ }))?.text).toBe('Images')
 
   await ui.press({ key: 'docker-tab:images' })
-  expect((await ui.find({ type: 'Text', text: /^Error response from daemon: image sto/ }))?.text).toBe(
-    'Error response from daemon: image sto…',
+  expect((await ui.find({ type: 'Text', text: /^Error response from daemon: image s/ }))?.text).toBe(
+    'Error response from daemon: image s…',
   )
   expect(await ui.find({ type: 'Text', text: /^No images$/ })).toBeUndefined()
   await ui.unmount()

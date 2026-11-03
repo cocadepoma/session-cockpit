@@ -16,8 +16,9 @@ import {
 } from '../lib/lists'
 import { TRANSCRIPT_EXTENSION, projectDirectory } from '../lib/paths'
 import { formatAgo, truncate } from '../lib/text'
+import { ACTIVE_COLOR } from '../lib/theme'
 import { hasChanged } from '../lib/values'
-import { drawFilter, drawFold, drawListScroller, rowWidth } from '../lib/view'
+import { SECTION_INDENT, drawFilter, drawFold, drawListScroller, rowWidth } from '../lib/view'
 import type { PaneInput } from '../lib/view'
 import { readCurrentTitle } from './header'
 import { readCheckedAt } from './usage'
@@ -146,7 +147,7 @@ export async function drawConversations($: EngineInterface, e: PaneInput): Promi
         </Button>
       </Box>
       {isOpen && (
-        <Box flexDirection="column">
+        <Box key="conversations-body" flexDirection="column" paddingLeft={SECTION_INDENT}>
           {filterRow}
           {visible.map(conversation => {
             const ago = formatAgo(conversation.updatedAt, checkedAt)
@@ -155,7 +156,9 @@ export async function drawConversations($: EngineInterface, e: PaneInput): Promi
               return (
                 <Box key={`conversation:${conversation.id}`} flexDirection="row">
                   <Text color="inactive">{`${ago.padStart(3)} `}</Text>
-                  <Text bold>{truncate(currentTitle, width - 4)}</Text>
+                  <Text bold color={ACTIVE_COLOR}>
+                    {truncate(currentTitle, width - 4)}
+                  </Text>
                 </Box>
               )
             }

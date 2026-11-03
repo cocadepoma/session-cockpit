@@ -8,7 +8,7 @@ import { listBlock } from '../lib/layout'
 import type { Block } from '../lib/layout'
 import { listWindow, readListFilter, readListOffset, readSectionOpen, setListFilter } from '../lib/lists'
 import { truncate } from '../lib/text'
-import { drawFilter, drawFold, drawListScroller, rowWidth } from '../lib/view'
+import { SECTION_INDENT, drawFilter, drawFold, drawListScroller, rowWidth } from '../lib/view'
 import type { PaneInput } from '../lib/view'
 
 const MIN_HINT_WIDTH = 6
@@ -94,7 +94,7 @@ export async function drawSkills($: EngineInterface, e: PaneInput): Promise<Bloc
         suffix: <Text color="inactive">{skills.length === 0 ? '' : ` (${skills.length})`}</Text>,
       })}
       {isOpen && (
-        <Box flexDirection="column">
+        <Box key="skills-body" flexDirection="column" paddingLeft={SECTION_INDENT}>
           {filterRow}
           {visible.map(skill => {
             const { name, hint } = skillRow(skill, width)

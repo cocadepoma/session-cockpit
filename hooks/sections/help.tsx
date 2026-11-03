@@ -2,7 +2,7 @@ import type { EngineInterface } from 'claude-code'
 
 import { DEBUG_ARGUMENT, LOGO_COMMAND, LOGO_FILE_ARGUMENT, NOTE_COMMAND, OWN_COMMAND } from '../lib/commands'
 import { readSectionOpen } from '../lib/lists'
-import { drawFold } from '../lib/view'
+import { SECTION_INDENT, drawFold } from '../lib/view'
 import type { PaneInput } from '../lib/view'
 
 const HELP_ABOUT =
@@ -44,7 +44,7 @@ export async function drawHelp($: EngineInterface, e: PaneInput) {
     <Box flexDirection="column">
       {drawFold($, e, { id: 'help', title: 'Help', isOpen })}
       {isOpen && (
-        <Box flexDirection="column">
+        <Box key="help-body" flexDirection="column" paddingLeft={SECTION_INDENT}>
           <Text color="inactive" wrap="truncate-end">
             {HELP_ABOUT}
           </Text>

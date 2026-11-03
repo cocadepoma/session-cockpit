@@ -8,7 +8,8 @@ import type { Block } from '../lib/layout'
 import { currentTranscriptPath } from '../lib/paths'
 import { fitGitRow, formatModel, truncate } from '../lib/text'
 import { describeError } from '../lib/trace'
-import { rowWidth } from '../lib/view'
+import { ACTIVE_COLOR } from '../lib/theme'
+import { paneWidth } from '../lib/view'
 import type { PaneInput } from '../lib/view'
 
 const NEW_SESSION_TITLE = 'New session'
@@ -115,7 +116,7 @@ function drawPickerRow(
               return (
                 <Button key={`${command}-pick-${choice}`} plain onPress={() => void pickModelOption($, command, choice)}>
                   {isCurrent ? (
-                    <Text color="inverseText" backgroundColor="claude" bold>{` ${text} `}</Text>
+                    <Text color="inverseText" backgroundColor={ACTIVE_COLOR} bold>{` ${text} `}</Text>
                   ) : (
                     <Text color="suggestion">{text}</Text>
                   )}
@@ -145,7 +146,7 @@ export async function drawModelLine($: EngineInterface, e: PaneInput) {
 
   return (
     <Box flexDirection="row" gap={1}>
-      <Text color="claude">{truncate(formatModel(model.model), rowWidth(e) - MODEL_BUTTON_RESERVED_COLUMNS)}</Text>
+      <Text color={ACTIVE_COLOR}>{truncate(formatModel(model.model), paneWidth(e) - MODEL_BUTTON_RESERVED_COLUMNS)}</Text>
       {model.effort !== null && <Text color="inactive">{`· ${model.effort}`}</Text>}
     </Box>
   )
@@ -161,7 +162,7 @@ export async function drawHeader($: EngineInterface, e: PaneInput): Promise<Bloc
     read($, turnActiveState),
   ])
   const currentAlias = MODEL_CHOICES.find(alias => model.model.includes(alias)) ?? null
-  const width = rowWidth(e)
+  const width = paneWidth(e)
   const isPicking = model.model !== '' && isPickerOpen
   const gitTail = [...(git.ahead > 0 ? [`↑${git.ahead}`] : []), ...(git.behind > 0 ? [`↓${git.behind}`] : [])]
   const gitMark = git.isDirty ? '*' : ''
@@ -181,7 +182,7 @@ export async function drawHeader($: EngineInterface, e: PaneInput): Promise<Bloc
       {model.model !== '' && (
         <Button key="model-picker-toggle" plain onPress={() => void toggleModelPicker($)}>
           <Text color="inactive">{isPickerOpen ? '▼ ' : '▶ '}</Text>
-          <Text color="claude">{truncate(formatModel(model.model), width - MODEL_BUTTON_RESERVED_COLUMNS)}</Text>
+          <Text color={ACTIVE_COLOR}>{truncate(formatModel(model.model), width - MODEL_BUTTON_RESERVED_COLUMNS)}</Text>
           {model.effort !== null && <Text> </Text>}
           {model.effort !== null && <Text color="inactive">{`· ${model.effort}`}</Text>}
         </Button>

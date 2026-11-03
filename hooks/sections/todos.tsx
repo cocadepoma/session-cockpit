@@ -2,6 +2,7 @@ import { atom, read, update } from 'claude-code'
 import type { EngineInterface } from 'claude-code'
 
 import type { SidebarTodo, SidebarTodoStatus } from '../../types'
+import { SECTION_INDENT } from '../lib/view'
 import type { PaneInput } from '../lib/view'
 
 const MAX_TODOS = 12
@@ -56,21 +57,23 @@ export async function drawTodos($: EngineInterface, e: PaneInput) {
         <Text bold>Todo</Text>
         <Text color="inactive">{`(${remaining} remaining)`}</Text>
       </Box>
-      {todos.slice(0, MAX_TODOS).map(todo => (
-        <Box key={todo.id} flexDirection="row" gap={1}>
-          <Text color={TODO_MARKS[todo.status].color}>{TODO_MARKS[todo.status].mark}</Text>
-          <Box flexGrow={1} flexShrink={1} minWidth={0}>
-            <Text
-              color={todo.status === 'completed' ? 'inactive' : 'text'}
-              strikethrough={todo.status === 'completed'}
-              wrap="truncate-end"
-            >
-              {todo.content}
-            </Text>
+      <Box key="todos-body" flexDirection="column" paddingLeft={SECTION_INDENT}>
+        {todos.slice(0, MAX_TODOS).map(todo => (
+          <Box key={todo.id} flexDirection="row" gap={1}>
+            <Text color={TODO_MARKS[todo.status].color}>{TODO_MARKS[todo.status].mark}</Text>
+            <Box flexGrow={1} flexShrink={1} minWidth={0}>
+              <Text
+                color={todo.status === 'completed' ? 'inactive' : 'text'}
+                strikethrough={todo.status === 'completed'}
+                wrap="truncate-end"
+              >
+                {todo.content}
+              </Text>
+            </Box>
           </Box>
-        </Box>
-      ))}
-      {todos.length > MAX_TODOS && <Text color="inactive">{`+${todos.length - MAX_TODOS} more`}</Text>}
+        ))}
+        {todos.length > MAX_TODOS && <Text color="inactive">{`+${todos.length - MAX_TODOS} more`}</Text>}
+      </Box>
     </Box>
   )
 }

@@ -4,6 +4,7 @@ import type { EngineInterface } from 'claude-code'
 import type { SidebarActivityEntry } from '../../types'
 import { baseName } from '../lib/paths'
 import { firstLine, formatDuration, truncate } from '../lib/text'
+import { SECTION_INDENT } from '../lib/view'
 import type { PaneInput } from '../lib/view'
 
 const FINISHED_LIMIT = 5
@@ -166,15 +167,17 @@ export async function drawActivity($: EngineInterface, e: PaneInput) {
   return (
     <Box flexDirection="column">
       <Text bold>{`Activity (${activity.running.length} running)`}</Text>
-      {topLevel.flatMap(entry => [
-        drawRow(entry, <Text color="warning">{spinner}</Text>, false),
-        ...activity.running
-          .filter(child => child.parentId === entry.id)
-          .map(child => drawRow(child, <Text color="warning">{spinner}</Text>, true)),
-      ])}
-      {activity.finished.map(entry =>
-        drawRow(entry, <Text color={entry.isError ? 'error' : 'success'}>{entry.isError ? '✗' : '✓'}</Text>, false),
-      )}
+      <Box key="activity-body" flexDirection="column" paddingLeft={SECTION_INDENT}>
+        {topLevel.flatMap(entry => [
+          drawRow(entry, <Text color="warning">{spinner}</Text>, false),
+          ...activity.running
+            .filter(child => child.parentId === entry.id)
+            .map(child => drawRow(child, <Text color="warning">{spinner}</Text>, true)),
+        ])}
+        {activity.finished.map(entry =>
+          drawRow(entry, <Text color={entry.isError ? 'error' : 'success'}>{entry.isError ? '✗' : '✓'}</Text>, false),
+        )}
+      </Box>
     </Box>
   )
 }

@@ -13,7 +13,14 @@ const PANE_PADDING = 2
 
 export type PaneInput = RenderInput<'Pane'>
 
-export const rowWidth = (e: PaneInput) => e.props.bodyColumns - PANE_PADDING
+// Section content sits this many columns right of its title, so each section reads as one block.
+export const SECTION_INDENT = 2
+
+export const paneWidth = (e: PaneInput) => e.props.bodyColumns - PANE_PADDING
+
+// The width of a row inside a section body; a row wider than this wraps and shifts the rows the
+// wheel and the list windows count.
+export const rowWidth = (e: PaneInput) => paneWidth(e) - SECTION_INDENT
 
 export const levelColor = (percent: number, thresholds: Thresholds = DEFAULT_THRESHOLDS) =>
   percent >= thresholds.critical ? 'error' : percent >= thresholds.warning ? 'warning' : 'success'
@@ -24,11 +31,13 @@ const barCells = (percent: number, width: number) => {
   return { filled: BAR_GLYPH.repeat(filled), empty: BAR_GLYPH.repeat(width - filled) }
 }
 
-const barWidth = (columns: number) => Math.min(BAR_MAX_WIDTH, Math.max(BAR_MIN_WIDTH, columns - BAR_ROW_LABELS_WIDTH))
+// An indented bar gives the indent back even at its minimum, so its row fits wherever it fit unindented.
+const barWidth = (columns: number, indent: number) =>
+  Math.min(BAR_MAX_WIDTH, Math.max(BAR_MIN_WIDTH - indent, columns - indent - BAR_ROW_LABELS_WIDTH))
 
-export function drawBar($: EngineInterface, e: PaneInput, percent: number, color: string, reservedColumns = 0) {
+export function drawBar($: EngineInterface, e: PaneInput, percent: number, color: string, reservedColumns = 0, indent = 0) {
   const { Box, Text } = $.ui.resolve(e)
-  const { filled, empty } = barCells(percent, barWidth(e.props.bodyColumns - reservedColumns))
+  const { filled, empty } = barCells(percent, barWidth(e.props.bodyColumns - reservedColumns, indent))
 
   return (
     <Box flexDirection="row">

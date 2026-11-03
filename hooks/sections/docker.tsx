@@ -26,7 +26,8 @@ import { filterList, listWindow, readListFilter, readListOffset, readSectionOpen
 import { listBlock } from '../lib/layout'
 import type { Block } from '../lib/layout'
 import { truncate } from '../lib/text'
-import { drawFilter, drawFold, drawListScroller, rowWidth } from '../lib/view'
+import { ACTIVE_COLOR, SELECTED_MARK } from '../lib/theme'
+import { SECTION_INDENT, drawFilter, drawFold, drawListScroller, rowWidth } from '../lib/view'
 import type { PaneInput } from '../lib/view'
 
 const TOOLBAR_ROWS = 1
@@ -88,7 +89,7 @@ function drawTabs($: EngineInterface, e: PaneInput, docker: SidebarDocker, tab: 
     <Box flexDirection="row" gap={2}>
       {TABS.map(({ id, label }) => (
         <Button key={`docker-tab:${id}`} plain onPress={() => void selectDockerTab($, id)}>
-          <Text bold={id === tab} color={id === tab ? 'text' : 'inactive'}>{`${label}${counts[id]}`}</Text>
+          <Text bold={id === tab} color={id === tab ? ACTIVE_COLOR : 'inactive'}>{`${label}${counts[id]}`}</Text>
         </Button>
       ))}
     </Box>
@@ -126,15 +127,19 @@ type RowOptions = { target: string; label: string; detail: string; marker?: JSX.
 function drawRow($: EngineInterface, e: PaneInput, { target, label, detail, marker, control }: RowOptions) {
   const { Box, Button, Text } = $.ui.resolve(e)
   const pending = pendingOf(control, target)
+  const isSelected = control.selected === target
   const shownDetail = pending === null ? detail : PENDING_TEXT[pending]
-  const labelWidth = rowWidth(e) - shownDetail.length - (marker === undefined ? 1 : 3)
+  const labelWidth = rowWidth(e) - shownDetail.length - (marker === undefined ? 1 : 3) - (isSelected ? 2 : 0)
 
   return (
     <Box key={`docker-row:${target}`} flexDirection="row" gap={1}>
+      {isSelected && <Text color={ACTIVE_COLOR}>{SELECTED_MARK}</Text>}
       {marker}
       <Box flexGrow={1} flexShrink={1} minWidth={0}>
         <Button key={`docker-${target}`} plain onPress={() => void selectDockerTarget($, target)}>
-          <Text bold={control.selected === target}>{truncate(label, labelWidth)}</Text>
+          <Text bold={isSelected} color={isSelected ? ACTIVE_COLOR : undefined}>
+            {truncate(label, labelWidth)}
+          </Text>
         </Button>
       </Box>
       <Text color={pending === null ? 'inactive' : 'warning'}>{shownDetail}</Text>
@@ -186,7 +191,11 @@ export async function drawDocker($: EngineInterface, e: PaneInput): Promise<Bloc
     const element = (
       <Box flexDirection="column">
         {header}
-        {isOpen && <Text color="inactive">{notice}</Text>}
+        {isOpen && (
+          <Box key="docker-body" flexDirection="column" paddingLeft={SECTION_INDENT}>
+            <Text color="inactive">{notice}</Text>
+          </Box>
+        )}
       </Box>
     )
 
@@ -216,13 +225,15 @@ export async function drawDocker($: EngineInterface, e: PaneInput): Promise<Bloc
   const element = (
     <Box flexDirection="column">
       {header}
-      {drawTabs($, e, docker, tab)}
-      {filterRow}
-      {tab === 'containers'
-        ? containerWindow.visible.flatMap(container => drawContainer($, e, container, control, now))
-        : imageWindow.visible.flatMap(image => drawImage($, e, image, control, now))}
-      {drawListScroller($, e, 'docker', { start, shown: shownCount, total })}
-      {total === 0 && <Text color="inactive">{emptyNotice}</Text>}
+      <Box key="docker-body" flexDirection="column" paddingLeft={SECTION_INDENT}>
+        {drawTabs($, e, docker, tab)}
+        {filterRow}
+        {tab === 'containers'
+          ? containerWindow.visible.flatMap(container => drawContainer($, e, container, control, now))
+          : imageWindow.visible.flatMap(image => drawImage($, e, image, control, now))}
+        {drawListScroller($, e, 'docker', { start, shown: shownCount, total })}
+        {total === 0 && <Text color="inactive">{emptyNotice}</Text>}
+      </Box>
     </Box>
   )
 

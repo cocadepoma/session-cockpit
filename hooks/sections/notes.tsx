@@ -16,7 +16,7 @@ import {
   resetListOffset,
 } from '../lib/lists'
 import { firstLine, truncate } from '../lib/text'
-import { drawFilter, drawFold, drawListScroller, rowWidth } from '../lib/view'
+import { SECTION_INDENT, drawFilter, drawFold, drawListScroller, rowWidth } from '../lib/view'
 import type { PaneInput } from '../lib/view'
 
 const NOTES_KEY = 'notes'
@@ -154,7 +154,7 @@ export async function drawNotes($: EngineInterface, e: PaneInput): Promise<Block
         suffix: <Text color="inactive">{notes.length === 0 ? '' : ` (${notes.length})`}</Text>,
       })}
       {isOpen && (
-        <Box flexDirection="column">
+        <Box key="notes-body" flexDirection="column" paddingLeft={SECTION_INDENT}>
           {filterRow}
           {visible.map(note => (
             <Box key={`note-row:${note.id}`} flexDirection="row" gap={1}>

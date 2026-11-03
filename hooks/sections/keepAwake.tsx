@@ -8,7 +8,7 @@ import { claudeConfigDirectory } from '../lib/paths'
 import { PROCESS_TIMEOUT_MS } from '../lib/process'
 import { record } from '../lib/trace'
 import { hasChanged } from '../lib/values'
-import { rowWidth } from '../lib/view'
+import { paneWidth } from '../lib/view'
 import type { PaneInput } from '../lib/view'
 
 const KEEP_AWAKE_GRACE_MS = 500
@@ -305,7 +305,7 @@ export async function drawKeepAwake($: EngineInterface, e: PaneInput): Promise<B
   }
   const left = keepAwake.minutesLeft === null ? '∞' : formatKeepAwakeMinutes(keepAwake.minutesLeft)
   const pill = ` ● Keep awake · ${left} `
-  const hint = pill.length + UNVERIFIED_HINT.length <= rowWidth(e) ? UNVERIFIED_HINT : UNVERIFIED_SHORT_HINT
+  const hint = pill.length + UNVERIFIED_HINT.length <= paneWidth(e) ? UNVERIFIED_HINT : UNVERIFIED_SHORT_HINT
 
   const element = (
     <Box flexDirection="row">

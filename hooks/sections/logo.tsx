@@ -8,7 +8,7 @@ import type { Block } from '../lib/layout'
 import { claudeConfigDirectory } from '../lib/paths'
 import { shown } from '../lib/lastShown'
 import { guarded } from '../lib/trace'
-import { rowWidth } from '../lib/view'
+import { paneWidth } from '../lib/view'
 import type { PaneInput } from '../lib/view'
 import { BANNER, BANNER_WIDTH } from './logoArt'
 import type { BannerTone } from './logoArt'
@@ -135,7 +135,7 @@ export async function drawLogo($: EngineInterface, e: PaneInput): Promise<Block 
   const { art } = await read($, logoState).then(shown(logoState))
 
   if (art === null) {
-    if (rowWidth(e) < BANNER_WIDTH) return null
+    if (paneWidth(e) < BANNER_WIDTH) return null
 
     const element = (
       <Box flexDirection="column" alignItems="center">
@@ -154,7 +154,7 @@ export async function drawLogo($: EngineInterface, e: PaneInput): Promise<Block 
     return { element, rows: BANNER.length }
   }
 
-  if (rowWidth(e) < artWidth(art.split('\n'))) return null
+  if (paneWidth(e) < artWidth(art.split('\n'))) return null
   const defaultColor = hasAnsiCodes(art) ? ANSI_DEFAULT_COLOR : ART_COLOR
   const lines = parseAnsiLines(art)
 
