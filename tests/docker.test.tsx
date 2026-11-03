@@ -1,7 +1,7 @@
 import { expect, mock, test } from 'claude-code/testing'
 import type { TestBody } from 'claude-code/testing'
 import type { On } from 'claude-code'
-import { APP, NOW, PANE, dockerContainer, dockerImage, givenEngine, holdDocker } from './fixtures'
+import { APP, NOW, PANE, dockerContainer, dockerImage, dockerVolume, givenEngine, holdDocker } from './fixtures'
 
 const SHOWN = { options: { showDocker: true } }
 const SECTION_INDENT = 2
@@ -11,6 +11,11 @@ const MAILPIT = 'b9839b50e0f3'
 const WEB = 'a1b2c3d4e5f6'
 
 const dockerCalls = (ran: string[][]) => ran.filter(argv => argv[0] === 'docker').map(argv => argv[1])
+
+const READS = ['ps', 'images', 'volume', 'volume']
+
+const listedVolumes = async (ui: { findAll: (query: { type: 'Text'; text: RegExp }) => Promise<{ text?: string }[]> }) =>
+  (await ui.findAll({ type: 'Text', text: /^(pgdata|mailpit_data|build_cache)/ })).map(found => found.text)
 
 const listedContainers = async (ui: { findAll: (query: { type: 'Text'; text: RegExp }) => Promise<{ text?: string }[]> }) =>
   (await ui.findAll({ type: 'Text', text: /^api-/ })).map(found => found.text)
@@ -29,6 +34,8 @@ const givenDocker = async ($: Parameters<TestBody>[0], on: On, { isOpen = true, 
     dockerImage('47928bf67eb6', 'nginx', 'stable-alpine', '93.1MB'),
     dockerImage('0123456789ab', '<none>', '<none>', '12MB'),
   ]
+  engine.world.docker.volumes = [dockerVolume('build_cache'), dockerVolume('mailpit_data'), dockerVolume('pgdata')]
+  engine.world.docker.danglingVolumes = ['build_cache']
   await $.session.start({ cwd: APP, surface: 'terminal', isInteractive: true })
 
   return { ...engine, clock }
@@ -62,7 +69,7 @@ test('opening Docker lists the containers, running first, with their state and t
   await ui.press({ key: 'docker-toggle' })
 
   expect(world.store.dockerOpen).toBe(true)
-  expect(dockerCalls(world.ran)).toEqual(['ps', 'images'])
+  expect(dockerCalls(world.ran)).toEqual(READS)
   expect(world.ran.find(argv => argv[1] === 'ps')).toEqual([
     'docker',
     'ps',
@@ -99,6 +106,119 @@ test('the Images tab lists each image reference with its size, and a dangling im
 
   await ui.press({ key: 'docker-tab:containers' })
   expect(await listedContainers(ui)).toEqual(['api-mailpit-1', 'api-postgres-1'])
+  await ui.unmount()
+})
+
+test('the Volumes tab lists each volume by name, in use or unused', SHOWN, async ($, on) => {
+  await givenDocker($, on)
+  const ui = await $.ui.mount({ ...PANE, surface: 'terminal' })
+  expect((await ui.find({ type: 'Text', text: /^Volumes/ }))?.text).toBe('Volumes 3')
+
+  await ui.press({ key: 'docker-tab:volumes' })
+
+  expect(await listedContainers(ui)).toEqual([])
+  expect(await listedVolumes(ui)).toEqual(['build_cache', 'mailpit_data', 'pgdata'])
+  expect((await ui.findAll({ type: 'Text', text: /^(in use|unused)$/ })).map(found => [found.text, found.props.color])).toEqual([
+    ['unused', 'inactive'],
+    ['in use', 'inactive'],
+    ['in use', 'inactive'],
+  ])
+  expect((await ui.find({ type: 'Text', text: /^(Containers|Images|Volumes) \d+$/ }))?.props.color).toBe('inactive')
+
+  await ui.press({ key: 'docker-tab:containers' })
+  expect(await listedContainers(ui)).toEqual(['api-mailpit-1', 'api-postgres-1'])
+  await ui.unmount()
+})
+
+test('opening Docker reads the volumes, and which of them no container uses, with the containers and images', SHOWN, async ($, on) => {
+  const { world } = await givenDocker($, on, { isOpen: false, usesMockClock: true })
+  const ui = await $.ui.mount({ ...PANE, surface: 'terminal' })
+
+  await ui.press({ key: 'docker-toggle' })
+
+  expect(dockerCalls(world.ran)).toEqual(READS)
+  expect(world.ran.filter(argv => argv[1] === 'volume')).toEqual([
+    ['docker', 'volume', 'ls', '--format', '{{.Name}}\t{{.Driver}}'],
+    ['docker', 'volume', 'ls', '--filter', 'dangling=true', '--format', '{{.Name}}'],
+  ])
+  await ui.unmount()
+})
+
+test('the filter narrows the volumes by name', SHOWN, async ($, on) => {
+  await givenDocker($, on)
+  const ui = await $.ui.mount({ ...PANE, surface: 'terminal' })
+  await ui.press({ key: 'docker-tab:volumes' })
+
+  await ui.input({ key: 'docker-filter', text: 'data', kind: 'change' })
+  expect(await listedVolumes(ui)).toEqual(['mailpit_data', 'pgdata'])
+
+  await ui.input({ key: 'docker-filter', text: 'zzz', kind: 'change' })
+  expect((await ui.find({ type: 'Text', text: /^No volumes match$/ }))?.text).toBe('No volumes match')
+  await ui.unmount()
+})
+
+test('no volumes reads as such', SHOWN, async ($, on) => {
+  const { world } = await givenDocker($, on)
+  world.docker.volumes = []
+  await $.tool.call({ tool: 'Bash', command: 'true' })
+  const ui = await $.ui.mount({ ...PANE, surface: 'terminal' })
+
+  await ui.press({ key: 'docker-tab:volumes' })
+
+  expect((await ui.find({ type: 'Text', text: /^No volumes$/ }))?.text).toBe('No volumes')
+  await ui.unmount()
+})
+
+test('a failing docker volume ls shows its reason in the Volumes tab and leaves the containers listed', SHOWN, async ($, on) => {
+  const { world } = await givenDocker($, on)
+  world.docker.volumesFailure = { exitCode: 1, stderr: 'permission denied while listing volumes\n' }
+  await $.tool.call({ tool: 'Bash', command: 'true' })
+  const ui = await $.ui.mount({ ...PANE, surface: 'terminal' })
+
+  expect(await listedContainers(ui)).toEqual(['api-mailpit-1', 'api-postgres-1'])
+  expect((await ui.find({ type: 'Text', text: /^Volumes/ }))?.text).toBe('Volumes')
+
+  await ui.press({ key: 'docker-tab:volumes' })
+  expect((await ui.find({ type: 'Text', text: /^permission denied/ }))?.text).toBe('permission denied while listing vol…')
+  expect(await ui.find({ type: 'Text', text: /^No volumes$/ })).toBeUndefined()
+  await ui.unmount()
+})
+
+test('the three tabs stay on one row in a narrow pane, dropping their counts when they do not fit', SHOWN, async ($, on) => {
+  await givenDocker($, on)
+  const tabsAt = async (bodyColumns: number) => {
+    const ui = await $.ui.mount({ ...PANE, surface: 'terminal', props: { ...PANE.props, bodyColumns } })
+    const labels = (await ui.findAll({ type: 'Text', text: /^(Containers|Images|Volumes|Ctrs|Imgs|Vols)/ })).map(found => found.text ?? '')
+    const gap = Number((await ui.find({ key: 'docker-tabs' }))?.props.gap)
+    await ui.unmount()
+
+    return { labels, width: labels.join('').length + gap * (labels.length - 1) }
+  }
+
+  const wide = await tabsAt(40)
+  expect(wide.labels).toEqual(['Containers 2', 'Images 3', 'Volumes 3'])
+  expect(wide.width).toBeLessThanOrEqual(40 - 2 - SECTION_INDENT)
+
+  const narrow = await tabsAt(30)
+  expect(narrow.labels).toEqual(['Containers', 'Images', 'Volumes'])
+  expect(narrow.width).toBeLessThanOrEqual(30 - 2 - SECTION_INDENT)
+
+  for (const bodyColumns of [28, 26, 24]) {
+    const tight = await tabsAt(bodyColumns)
+    expect(tight.labels.map(label => label.split(' ')[0])).toEqual(['Ctrs', 'Imgs', 'Vols'])
+    expect(tight.width).toBeLessThanOrEqual(bodyColumns - 2 - SECTION_INDENT)
+  }
+})
+
+test('the selected volume is marked with › and the active color', SHOWN, async ($, on) => {
+  const { ui } = await givenVolumeSelected($, on, 'pgdata')
+
+  expect((await ui.findAll({ type: 'Text', text: /^(build_cache|mailpit_data|pgdata)$/ })).map(found => found.props.color)).toEqual([
+    undefined,
+    undefined,
+    'claude',
+  ])
+  expect((await ui.findAll({ type: 'Text', text: /^›$/ })).map(found => found.props.color)).toEqual(['claude'])
   await ui.unmount()
 })
 
@@ -290,7 +410,7 @@ test('while open and shown, Docker polls every five seconds', SHOWN, async ($, o
 
   await clock?.advance(5_000)
 
-  expect(dockerCalls(world.ran)).toEqual(['ps', 'images'])
+  expect(dockerCalls(world.ran)).toEqual(READS)
 })
 
 test('folded, or with the sidebar closed, Docker does not poll', SHOWN, async ($, on) => {
@@ -325,7 +445,9 @@ test('more than eight containers scroll in windows of eight', SHOWN, async ($, o
 })
 
 const actionCalls = (ran: string[][]) =>
-  ran.filter(argv => argv[0] === 'docker' && !['ps', 'images'].includes(argv[1] ?? '')).map(argv => argv.slice(1))
+  ran
+    .filter(argv => argv[0] === 'docker' && !['ps', 'images'].includes(argv[1] ?? '') && !(argv[1] === 'volume' && argv[2] === 'ls'))
+    .map(argv => argv.slice(1))
 
 const actionLabels = async (ui: { findAll: (query: { type: 'Text'; text: RegExp }) => Promise<{ text?: string }[]> }) =>
   (await ui.findAll({ type: 'Text', text: /^(Restart|Stop|Start|Delete|Confirm delete)$/ })).map(found => found.text)
@@ -360,7 +482,7 @@ for (const [action, label, container, after] of [
     await ui.press({ key: `docker-${action}` })
 
     expect(actionCalls(world.ran)).toEqual([[action, '--', container]])
-    expect(dockerCalls(world.ran).slice(1)).toEqual(['ps', 'images'])
+    expect(dockerCalls(world.ran).slice(1)).toEqual(READS)
     expect(await actionLabels(ui)).toEqual([...after])
     expect(toasts).toEqual([])
     await ui.unmount()
@@ -554,6 +676,81 @@ test('an armed Delete reads Delete again once its five seconds are over, even wi
   now += 5_000
   await $.tool.call({ tool: 'Bash', command: 'true' })
   expect(await actionLabels(ui)).toEqual(['Start', 'Delete'])
+  await ui.unmount()
+})
+
+const givenVolumeSelected = async ($: Parameters<TestBody>[0], on: On, volume: string) => {
+  const engine = await givenDocker($, on, { usesMockClock: true })
+  const ui = await $.ui.mount({ ...PANE, surface: 'terminal' })
+  await ui.press({ key: 'docker-tab:volumes' })
+  await ui.press({ key: `docker-volume:${volume}` })
+
+  return { ...engine, ui }
+}
+
+test('pressing a volume offers Delete, and a second press hides it', SHOWN, async ($, on) => {
+  const { ui } = await givenVolumeSelected($, on, 'build_cache')
+  expect(await actionLabels(ui)).toEqual(['Delete'])
+  expect((await ui.find({ type: 'Text', text: /^Delete$/ }))?.props.color).toBe('suggestion')
+
+  await ui.press({ key: 'docker-volume:build_cache' })
+  expect(await actionLabels(ui)).toEqual([])
+  await ui.unmount()
+})
+
+test('Delete removes a volume with docker volume rm, never forced, only on a second press', SHOWN, async ($, on) => {
+  const { world, ui } = await givenVolumeSelected($, on, 'build_cache')
+
+  await ui.press({ key: 'docker-delete' })
+  expect(actionCalls(world.ran)).toEqual([])
+  expect(await actionLabels(ui)).toEqual(['Confirm delete'])
+  expect((await ui.find({ type: 'Text', text: /^Confirm delete$/ }))?.props.color).toBe('error')
+
+  await ui.press({ key: 'docker-delete' })
+  expect(actionCalls(world.ran)).toEqual([['volume', 'rm', '--', 'build_cache']])
+  expect(await listedVolumes(ui)).toEqual(['mailpit_data', 'pgdata'])
+  expect(await actionLabels(ui)).toEqual([])
+  await ui.unmount()
+})
+
+test('a volume Delete left unconfirmed for five seconds goes back to Delete and the next press asks again', SHOWN, async ($, on) => {
+  const { world, clock, ui } = await givenVolumeSelected($, on, 'build_cache')
+  await ui.press({ key: 'docker-delete' })
+
+  await clock?.advance(5_000)
+  expect(await actionLabels(ui)).toEqual(['Delete'])
+
+  await ui.press({ key: 'docker-delete' })
+  expect(actionCalls(world.ran)).toEqual([])
+  expect(await actionLabels(ui)).toEqual(['Confirm delete'])
+  await ui.unmount()
+})
+
+test('a volume docker refuses to delete shows docker\'s reason in a toast and stays listed', SHOWN, async ($, on) => {
+  const { world, toasts, ui } = await givenVolumeSelected($, on, 'pgdata')
+  world.docker.actionFailure = { exitCode: 1, stderr: 'Error response from daemon: remove pgdata: volume is in use - [1622725f7f74]\n' }
+
+  await ui.press({ key: 'docker-delete' })
+  await ui.press({ key: 'docker-delete' })
+
+  expect(toasts).toEqual(['Could not delete pgdata: Error response from daemon: remove pgdata: volume is in use - [1622725f7f74]'])
+  expect(await listedVolumes(ui)).toEqual(['build_cache', 'mailpit_data', 'pgdata'])
+  expect(await actionLabels(ui)).toEqual(['Delete'])
+  await ui.unmount()
+})
+
+test('while docker deletes a volume its row reads deleting… and offers nothing to press', SHOWN, async ($, on) => {
+  const { world, ui } = await givenVolumeSelected($, on, 'build_cache')
+  await ui.press({ key: 'docker-delete' })
+  const release = holdDocker(world.docker)
+
+  const pressed = ui.press({ key: 'docker-delete' })
+  expect((await ui.find({ type: 'Text', text: /^deleting…$/ }))?.props.color).toBe('warning')
+  expect(await actionLabels(ui)).toEqual([])
+
+  release()
+  await pressed
+  expect(await listedVolumes(ui)).toEqual(['mailpit_data', 'pgdata'])
   await ui.unmount()
 })
 

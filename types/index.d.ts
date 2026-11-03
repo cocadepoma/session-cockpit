@@ -87,17 +87,21 @@ export type SidebarDockerContainer = { id: string; name: string; image: string; 
 
 export type SidebarDockerImage = { id: string; repository: string; tag: string; size: string }
 
+export type SidebarDockerVolume = { name: string; driver: string; isInUse: boolean }
+
 export type SidebarDocker = {
   status: 'unknown' | 'ready' | 'unavailable'
   reason: string | null
   containers: SidebarDockerContainer[]
   images: SidebarDockerImage[]
   imagesReason: string | null
+  volumes: SidebarDockerVolume[]
+  volumesReason: string | null
 }
 
-export type SidebarDockerTab = 'containers' | 'images'
+export type SidebarDockerTab = 'containers' | 'images' | 'volumes'
 
-export type SidebarDockerAction = 'restart' | 'stop' | 'start' | 'rm' | 'rmi'
+export type SidebarDockerAction = 'restart' | 'stop' | 'start' | 'rm' | 'rmi' | 'volume-rm'
 
 export type SidebarDockerControl = {
   selected: string | null
