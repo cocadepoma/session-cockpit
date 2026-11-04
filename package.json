@@ -1,0 +1,17 @@
+{
+  "name": "session-cockpit",
+  "private": true,
+  "packageManager": "pnpm@12.15.0",
+  "scripts": {
+    "test": "claude plugin test .",
+    "lint": "eslint .",
+    "typecheck": "tsc -p ."
+  },
+  "devDependencies": {
+    "@anthropic-ai/claude-code": "2.1.316",
+    "@eslint/js": "^10.0.1",
+    "eslint": "^10.14.0",
+    "typescript": "~6.0.3",
+    "typescript-eslint": "^8.72.1"
+  }
+}

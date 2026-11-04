@@ -52,9 +52,6 @@ const givenBreakdown = async ($: Parameters<TestBody>[0], on: On) => {
   return world
 }
 
-const rowTexts = async (ui: { findAll: (query: { key: string }) => Promise<{ text?: string }[]> }, key: string) =>
-  (await ui.findAll({ key })).map(found => found.text)
-
 test('the details are folded by default and a press unfolds them with a summary breakdown, largest first', async ($, on) => {
   const world = await givenBreakdown($, on)
   const ui = await $.ui.mount({ ...PANE, surface: 'terminal' })

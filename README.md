@@ -148,17 +148,31 @@ Git is only read. Every `git` call runs with `--no-optional-locks` and `core.fsm
 
 ## Development
 
+The project uses [pnpm](https://pnpm.io) (the version `packageManager` pins in `package.json`) and Node 24. `pnpm install` brings ESLint, TypeScript and the Claude Code version the tests run on.
+
 ```
+pnpm install                   # the dev dependencies
+pnpm test                      # the test suite, with `claude plugin test .`
+pnpm lint                      # ESLint
 claude --plugin-dir .          # run a session with the mod loaded from this folder
 claude plugin validate .       # what the engine will load, and what it would refuse
-claude plugin test .           # the test suite
 ```
 
 Type checking needs the engine's type files, which Claude Code writes to `.claude-plugin/types/` the first time it loads the mod from this folder. After that:
 
 ```
-npx -p typescript tsc -p .
+pnpm typecheck
 ```
+
+### Continuous integration
+
+| Workflow | Runs | On |
+|---|---|---|
+| `Tests` | `pnpm test` | Every pull request and push to `main` |
+| `Lint` | `pnpm lint` | Every pull request and push to `main` |
+| `Dependency audit` | `pnpm audit --audit-level high` | Pull requests that change `package.json`, `pnpm-lock.yaml` or `pnpm-workspace.yaml`, every Monday, and by hand |
+
+CI does not run `pnpm typecheck`: `claude plugin test` does not write the engine's type files, so a fresh checkout has none to check against.
 
 ### Layout
 

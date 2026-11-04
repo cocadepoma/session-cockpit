@@ -1,0 +1,4 @@
+# pnpm runs no dependency's install script unless it is listed here.
+# Claude Code's script puts the binary for this platform in place; `pnpm test` runs it.
+allowBuilds:
+  '@anthropic-ai/claude-code': true
