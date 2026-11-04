@@ -172,6 +172,8 @@ pnpm typecheck
 | `Lint` | `pnpm lint` | Every pull request and push to `main` |
 | `Dependency audit` | `pnpm audit --audit-level high` | Pull requests that change `package.json`, `pnpm-lock.yaml` or `pnpm-workspace.yaml`, every Monday, and by hand |
 
+CI does not run `pnpm typecheck`: `claude plugin test` does not write the engine's type files, so a fresh checkout has none to check against.
+
 ### Layout
 
 | Path | Holds |
